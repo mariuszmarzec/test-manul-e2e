@@ -1,2 +1,2 @@
-flask
-pytest
+# WebFrame Requirements
+pytest>=7.0
