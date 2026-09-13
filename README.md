@@ -197,6 +197,7 @@ pytest tests/test_core.py -v --cov=mylib --cov-report=term-missing
 ├── tests/
 │   ├── __init__.py
 │   └── test_core.py     # Comprehensive test suite
+├── calculator.py        # Simple calculator utility with add function
 ├── setup.py             # Package configuration
 ├── requirements.txt     # Dependencies
 └── README.md            # This file
