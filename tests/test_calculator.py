@@ -21,3 +21,4 @@ class TestCalculator:
         assert multiply(2.5, 4) == 10.0
         assert multiply(0, 5) == 0.0
         assert multiply(-2, 3) == -6.0
+        assert multiply(0, 99) == 0.0
