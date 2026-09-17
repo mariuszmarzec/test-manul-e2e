@@ -23,3 +23,4 @@ class TestCalculator:
         assert multiply(-2, 3) == -6.0
         assert multiply(2, 3) == 6.0
         assert multiply(0, 99) == 0.0
+        assert multiply(5, 2) == 10.0
