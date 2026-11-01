@@ -206,3 +206,44 @@ pytest tests/test_core.py -v --cov=mylib --cov-report=term-missing
 ## License
 
 MIT License
+
+
+## Manul E2E suites
+
+The Manul checks live in isolated directories and do not modify the WebFrame
+library or its existing tests.
+
+### Standalone extraction and installer safety
+
+The `standalone-manul-e2e/` suite clones the Manul source at
+`MANUL_E2E_REF` (defaults to `extract/manul-runtime`) and exercises the real
+installer, repair helper, and environment bootstrap using a disposable
+`HOME`, temporary runtime directory, and fake host commands.
+
+It verifies:
+
+- canonical scripts and runtime symlinks resolve to the standalone checkout;
+- the installer preserves a pre-existing SQLite database and refuses to
+  fabricate state when no database exists;
+- repair refuses to create a new database when no valid backup exists;
+- unattended environment bootstrap preserves operator settings, refreshes
+  canonical/host-skill paths atomically, and uses mode 0600;
+- operator-specific configuration and credential values are not committed or
+  printed by the harness.
+
+Run locally:
+
+```bash
+python -m pip install pytest
+pytest -q standalone-manul-e2e/test_extraction.py
+```
+
+The GitHub Actions workflow runs this suite on relevant pull requests and
+pushes. To validate a different Manul branch or commit:
+
+```bash
+MANUL_E2E_REF=<branch-or-commit> pytest -q standalone-manul-e2e/test_extraction.py
+```
+
+The suite does not start the daemon or connect to GitHub, Todo Desktop, Fiteo,
+or Caracal. It does not access the operator's real `~/.manul` or credentials.
