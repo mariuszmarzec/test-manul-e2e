@@ -143,6 +143,14 @@ def test_installer_preserves_existing_database_and_uses_standalone_source(tmp_pa
     before = database_snapshot(db)
 
     env = installer_env(home, skill, bin_dir, crontab_state)
+    import json
+    config = runtime / "config.json"
+    config.write_text(json.dumps({
+        "taskSources": [{
+            "type": "todo_remote_mcp", "enabled": True,
+            "url": "https://fiteo.invalid/mcp", "tokenEnv": "FITEO_PAT"
+        }]
+    }), encoding="utf-8")
     result = run(
         ["bash", str(skill / "install-manul.sh"), "--runtime-dir", str(runtime),
          "--canonical-dir", str(skill)],
