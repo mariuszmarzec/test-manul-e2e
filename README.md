@@ -254,30 +254,35 @@ or Caracal. It does not access the operator's real `~/.manul` or credentials.
 The green GitHub Actions job above is an isolated installer-safety test. It is
 **not** the full live Manul E2E run.
 
-Do not start the live scenarios from issue #28 until all three related PRs have
+Do not start the live scenarios from issue #28 until all four related PRs have
 been merged:
 
 1. `mariuszmarzec/manul#1` — standalone runtime becomes available on `main`.
-2. `mariuszmarzec/globalskills#128` — host integration points to standalone
+2. `mariuszmarzec/manul#2` — follow-up runtime fixes (submodule recovery and Fiteo MCP).
+3. `mariuszmarzec/globalskills#128` — host integration points to standalone
    Manul on `main`.
-3. `mariuszmarzec/test-manul-e2e#29` — the extraction E2E harness is merged.
+4. `mariuszmarzec/test-manul-e2e#29` — the extraction E2E harness is merged.
 
 Then the operator machine must be updated and bootstrapped before any live E2E:
 
 1. Pull the merged `main` changes for `globalskills`, `manul`, and
    `test-manul-e2e` (use fast-forward-only updates; do not test stale local
    checkouts).
-2. Check Manul's daemon/task state, then intentionally stop the old runtime.
-   Keep a rollback archive of the old `~/.manul` and `~/.manul-repo` until
-   the fresh installation is verified. The fresh runtime itself must be
-   initialized from the standalone repository, not from the legacy
+2. Check Manul's daemon and child-process state, then intentionally stop the
+   old runtime. The operator has explicitly chosen a destructive reset: discard
+   the old SQLite database and the entire Manul workspace. Do not migrate or
+   archive task history, leases, workspace checkouts, branches, logs, or task
+   artefacts. Preserve only the selected operator-owned configuration and
+   credentials outside Git with restrictive permissions. The fresh runtime
+   must be initialized from the standalone repository, not from the legacy
    `globalskills/skills/manul-github-bot` source.
 3. Clone/update standalone Manul at `~/.manul-repo`, set
    `MANUL_CANONICAL_DIR=~/.manul-repo/skills/manul-github-bot` and
-   `MANUL_HOST_SKILLS_DIR=~/.globalskills/skills`, then perform a deliberate
-   fresh install with `install-manul.sh --init-state` against the new runtime.
-   Restore only operator-owned configuration and credentials from the approved
-   local secret/config sources; never copy them into Git.
+   `MANUL_HOST_SKILLS_DIR=~/.globalskills/skills`. Remove the old runtime data
+   and perform a deliberate fresh install with `install-manul.sh --init-state`.
+   Restore only the selected operator-owned configuration and credentials from
+   approved local sources; do not restore the old database, workspace, task
+   artefacts, logs, or leases, and never copy secrets into Git.
 4. Verify that runtime entrypoints resolve into `~/.manul-repo`, the runtime
    DB is the new one, `.env` has mode `0600`, the daemon is not accidentally
    started by installation, and `manul status`/intentional start behave as
@@ -287,6 +292,6 @@ Then the operator machine must be updated and bootstrapped before any live E2E:
    runtime verification results with the test run.
 
 This gate is host/manual work and is deliberately not simulated by ordinary
-Linux CI. Never run a cleanup or fresh-install step against a live daemon or a
-runtime containing active tasks. The operator may discard the old runtime data
-after the fresh installation is accepted; keep the rollback archive until then.
+Linux CI. Never remove runtime data while the old daemon or any task child
+process is still running. The old database and workspace are intentionally
+discarded as part of this reset; there is no rollback archive for those data.
