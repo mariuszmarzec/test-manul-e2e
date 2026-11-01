@@ -104,8 +104,18 @@ def database_snapshot(db_path: Path) -> dict[str, object]:
 
     with sqlite3.connect(db_path) as connection:
         return {
-            table: connection.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
-            for table in ("processed_comments", "conversations", "meta", "workspaces")
+            "processed_comments": connection.execute(
+                "SELECT commentId FROM processed_comments ORDER BY commentId"
+            ).fetchall(),
+            "conversations": connection.execute(
+                "SELECT conversationId FROM conversations ORDER BY conversationId"
+            ).fetchall(),
+            "meta": connection.execute(
+                "SELECT key, value FROM meta ORDER BY key"
+            ).fetchall(),
+            "workspaces": connection.execute(
+                "SELECT workspaceId FROM workspaces ORDER BY workspaceId"
+            ).fetchall(),
         }
 
 
@@ -218,6 +228,17 @@ def test_env_bootstrap_is_atomic_scoped_and_preserves_existing_values(tmp_path: 
         "TODO_LOCAL_MCP_TOKEN": "todo-placeholder-not-real",
         "FITEO_PAT": "fiteo-placeholder-not-real",
     })
+    # The token allowlist is configuration-driven. Enable only the Fiteo source
+    # in this fixture so FITEO_PAT is expected; never test by persisting
+    # credentials merely because a similarly named process variable exists.
+    import json
+    config = runtime / "config.json"
+    config.write_text(json.dumps({
+        "taskSources": [{
+            "type": "todo_remote_mcp", "enabled": True,
+            "url": "https://fiteo.invalid/mcp", "tokenEnv": "FITEO_PAT"
+        }]
+    }), encoding="utf-8")
     run(["bash", str(skill / "manul-env.sh"), "--bootstrap", str(runtime)], env=env)
 
     contents = env_file.read_text(encoding="utf-8")
@@ -229,7 +250,7 @@ def test_env_bootstrap_is_atomic_scoped_and_preserves_existing_values(tmp_path: 
     assert "CARACAL_MCP_URL=" in contents
     assert "CARACAL_ACCESS_TOKEN=" in contents
     assert "TODO_LOCAL_MCP_TOKEN=" in contents
-    assert "FITEO_PAT=" in contents
+    assert "FITEO_PAT=fiteo-placeholder-not-real" in contents
     assert env_file.stat().st_mode & 0o777 == 0o600
     assert list(runtime.glob(".env.*")) == []
 
