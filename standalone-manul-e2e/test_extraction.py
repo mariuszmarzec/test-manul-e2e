@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 MANUL_REPOSITORY = "https://github.com/mariuszmarzec/manul.git"
-MANUL_REF = os.environ.get("MANUL_E2E_REF", "extract/manul-runtime")
+MANUL_REF = os.environ.get("MANUL_E2E_REF", "main")
 SKILL_RELATIVE = Path("skills/manul-github-bot")
 
 
