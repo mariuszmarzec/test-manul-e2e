@@ -216,7 +216,7 @@ library or its existing tests.
 ### Standalone extraction and installer safety
 
 The `standalone-manul-e2e/` suite clones the Manul source at
-`MANUL_E2E_REF` (defaults to `extract/manul-runtime`) and exercises the real
+`MANUL_E2E_REF` (defaults to `main`) and exercises the real
 installer, repair helper, and environment bootstrap using a disposable
 `HOME`, temporary runtime directory, and fake host commands.
 
