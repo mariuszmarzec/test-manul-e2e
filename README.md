@@ -206,3 +206,87 @@ pytest tests/test_core.py -v --cov=mylib --cov-report=term-missing
 ## License
 
 MIT License
+
+
+## Manul E2E suites
+
+The Manul checks live in isolated directories and do not modify the WebFrame
+library or its existing tests.
+
+### Standalone extraction and installer safety
+
+The `standalone-manul-e2e/` suite clones the Manul source at
+`MANUL_E2E_REF` (defaults to `main`, so the suite always tests the merged standalone Manul runtime rather than the temporary extraction branch) and exercises the real
+installer, repair helper, and environment bootstrap using a disposable
+`HOME`, temporary runtime directory, and fake host commands.
+
+It verifies:
+
+- canonical scripts and runtime symlinks resolve to the standalone checkout;
+- the installer preserves a pre-existing SQLite database and refuses to
+  fabricate state when no database exists;
+- repair refuses to create a new database when no valid backup exists;
+- unattended environment bootstrap preserves operator settings, refreshes
+  canonical/host-skill paths atomically, and uses mode 0600;
+- operator-specific configuration and credential values are not committed or
+  printed by the harness.
+
+Run locally:
+
+```bash
+python -m pip install pytest
+pytest -q standalone-manul-e2e/test_extraction.py
+```
+
+The GitHub Actions workflow runs this suite on relevant pull requests and
+pushes. To validate a different Manul branch or commit:
+
+```bash
+MANUL_E2E_REF=<branch-or-commit> pytest -q standalone-manul-e2e/test_extraction.py
+```
+
+The suite does not start the daemon or connect to GitHub, Todo Desktop, Fiteo,
+or Caracal. It does not access the operator's real `~/.manul` or credentials.
+
+
+### Mandatory gate before full live E2E on the operator machine
+
+The green GitHub Actions job above is an isolated installer-safety test. It is
+**not** the full live Manul E2E run.
+
+Do not start the live scenarios from issue #28 until all three related PRs have
+been merged:
+
+1. `mariuszmarzec/manul#1` — standalone runtime becomes available on `main`.
+2. `mariuszmarzec/globalskills#128` — host integration points to standalone
+   Manul on `main`.
+3. `mariuszmarzec/test-manul-e2e#29` — the extraction E2E harness is merged.
+
+Then the operator machine must be updated and bootstrapped before any live E2E:
+
+1. Pull the merged `main` changes for `globalskills`, `manul`, and
+   `test-manul-e2e` (use fast-forward-only updates; do not test stale local
+   checkouts).
+2. Check Manul's daemon/task state, then intentionally stop the old runtime.
+   Keep a rollback archive of the old `~/.manul` and `~/.manul-repo` until
+   the fresh installation is verified. The fresh runtime itself must be
+   initialized from the standalone repository, not from the legacy
+   `globalskills/skills/manul-github-bot` source.
+3. Clone/update standalone Manul at `~/.manul-repo`, set
+   `MANUL_CANONICAL_DIR=~/.manul-repo/skills/manul-github-bot` and
+   `MANUL_HOST_SKILLS_DIR=~/.globalskills/skills`, then perform a deliberate
+   fresh install with `install-manul.sh --init-state` against the new runtime.
+   Restore only operator-owned configuration and credentials from the approved
+   local secret/config sources; never copy them into Git.
+4. Verify that runtime entrypoints resolve into `~/.manul-repo`, the runtime
+   DB is the new one, `.env` has mode `0600`, the daemon is not accidentally
+   started by installation, and `manul status`/intentional start behave as
+   expected.
+5. Only after the operator confirms this clean installation is healthy, run
+   the full live E2E scenarios. Record the exact repository SHAs and the fresh
+   runtime verification results with the test run.
+
+This gate is host/manual work and is deliberately not simulated by ordinary
+Linux CI. Never run a cleanup or fresh-install step against a live daemon or a
+runtime containing active tasks. The operator may discard the old runtime data
+after the fresh installation is accepted; keep the rollback archive until then.
