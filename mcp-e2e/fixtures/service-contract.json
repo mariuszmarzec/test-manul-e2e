@@ -1,0 +1,42 @@
+{
+  "contractVersion": 1,
+  "transport": "streamable-http",
+  "services": {
+    "caracal-rag": {
+      "required": true,
+      "endpoint": {
+        "env": "CARACAL_MCP_URL",
+        "suffix": ""
+      },
+      "authentication": {
+        "header": "Authorization",
+        "scheme": "Bearer",
+        "tokenEnv": "CARACAL_ACCESS_TOKEN"
+      }
+    },
+    "todo-local": {
+      "required": false,
+      "endpoint": {
+        "env": "TODO_LOCAL_MCP_URL",
+        "suffix": ""
+      },
+      "authentication": {
+        "header": "Authorization",
+        "scheme": "Bearer",
+        "tokenEnv": "TODO_LOCAL_MCP_TOKEN"
+      }
+    },
+    "fiteo-backend": {
+      "required": false,
+      "endpoint": {
+        "env": "FITEO_BASE_URL",
+        "suffix": "/mcp"
+      },
+      "authentication": {
+        "header": "Authorization",
+        "scheme": "Bearer",
+        "tokenEnv": "FITEO_PAT"
+      }
+    }
+  }
+}
