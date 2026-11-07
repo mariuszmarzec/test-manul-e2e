@@ -33,9 +33,19 @@ class DataProcessor:
         self._data = list(value)
     
     def process(self, func: Callable[[Dict[str, Any]], Dict[str, Any]]) -> "DataProcessor":
-        """Apply a function to each item in the dataset."""
+        """Apply a function to each item in the dataset.
+
+        The callback is evaluated exactly once per input item. Items for
+        which the callback returns ``None`` are dropped; all other results
+        are kept in the original order.
+        """
         original_count = len(self._data)
-        self._data = [func(item) for item in self._data if func(item) is not None]
+        processed: List[Dict[str, Any]] = []
+        for item in self._data:
+            result = func(item)
+            if result is not None:
+                processed.append(result)
+        self._data = processed
         self._history.append({
             "action": "process",
             "input_count": original_count,
