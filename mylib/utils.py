@@ -8,6 +8,7 @@ response formatting, and common operations.
 import re
 import uuid
 from typing import Any, Dict, List, Optional, Union
+from urllib.parse import unquote_plus
 
 
 def validate_input(data: Any, required_fields: List[str], types: Optional[Dict[str, type]] = None) -> Dict[str, Any]:
@@ -119,9 +120,9 @@ def parse_query_string(query_string: str) -> Dict[str, str]:
     for part in query_string.split("&"):
         if "=" in part:
             key, value = part.split("=", 1)
-            params[key] = value
+            params[unquote_plus(key)] = unquote_plus(value)
         else:
-            params[part] = ""
+            params[unquote_plus(part)] = ""
     
     return params
 

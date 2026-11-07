@@ -357,7 +357,7 @@ class TestParseQueryString:
     def test_special_characters(self):
         """Test with special characters."""
         result = parse_query_string("search=hello%20world")
-        assert result["search"] == "hello%20world"
+        assert result["search"] == "hello world"
 
 
 class TestGenerateId:
