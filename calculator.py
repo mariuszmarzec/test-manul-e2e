@@ -16,3 +16,26 @@ def add(a: float, b: float) -> float:
         4.0
     """
     return a + b
+
+
+def divide(a: float, b: float) -> float:
+    """
+    Divide two numbers and return the result.
+
+    Args:
+        a (float): The dividend
+        b (float): The divisor
+
+    Returns:
+        float: The result of a divided by b
+
+    Raises:
+        ZeroDivisionError: If b is zero
+
+    Example:
+        >>> divide(8, 2)
+        4.0
+        >>> divide(5, 2)
+        2.5
+    """
+    return a / b
