@@ -11,9 +11,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -24,9 +26,30 @@ from contract import load_contract, resolve_endpoint  # noqa: E402
 DEFAULT_PROTOCOL_VERSION = "2025-06-18"
 TIMEOUT_SECONDS = 20
 
+# Patterns that must never appear in JSON output reasons.
+_URL_PATTERN = re.compile(r"https?://[^\s\"'<>]+", re.IGNORECASE)
+_BEARER_PATTERN = re.compile(r"Bearer\s+[^\s\"'<>]+", re.IGNORECASE)
+
+
+def _sanitize_reason(reason: str) -> str:
+    """Remove any potentially sensitive data from a reason string."""
+    sanitized = _URL_PATTERN.sub("[redacted]", reason)
+    sanitized = _BEARER_PATTERN.sub("[redacted]", sanitized)
+    return sanitized
+
 
 class SmokeFailure(RuntimeError):
     pass
+
+
+@dataclass
+class ServiceResult:
+    """Structured result for a single service smoke check."""
+
+    name: str
+    status: str  # "PASS", "SKIP", or "FAIL"
+    tools: list[str]
+    reason: str | None  # null on PASS; sanitized error detail on FAIL/SKIP
 
 
 def _decode_response(content_type: str, body: bytes) -> list[dict[str, Any]]:
@@ -191,6 +214,116 @@ def smoke_service(name: str, endpoint: str, token: str, protocol_version: str) -
     return tool_names
 
 
+def _check_service(
+    name: str,
+    service: dict[str, Any],
+    protocol_version: str,
+    env: dict[str, str],
+) -> ServiceResult:
+    """Run the smoke check for a single service and return a ServiceResult."""
+    endpoint = resolve_endpoint(service, env)
+    token_name = service["authentication"]["tokenEnv"]
+    token = env.get(token_name, "")
+
+    if not endpoint or not token:
+        if service["required"]:
+            return ServiceResult(
+                name=name,
+                status="FAIL",
+                tools=[],
+                reason=_sanitize_reason(
+                    f"required endpoint/token environment is missing"
+                ),
+            )
+        return ServiceResult(
+            name=name,
+            status="SKIP",
+            tools=[],
+            reason=_sanitize_reason(
+                f"optional endpoint/token environment is missing"
+            ),
+        )
+
+    try:
+        tool_names = smoke_service(name, endpoint, token, protocol_version)
+    except SmokeFailure as exc:
+        return ServiceResult(
+            name=name,
+            status="FAIL",
+            tools=[],
+            reason=_sanitize_reason(str(exc)),
+        )
+    except (ValueError, json.JSONDecodeError):
+        return ServiceResult(
+            name=name,
+            status="FAIL",
+            tools=[],
+            reason=_sanitize_reason("invalid JSON or MCP response"),
+        )
+
+    return ServiceResult(
+        name=name,
+        status="PASS",
+        tools=tool_names,
+        reason=None,
+    )
+
+
+def _build_summary(results: list[ServiceResult]) -> dict[str, int]:
+    """Build summary counts.
+
+    ``checked`` is the total number of selected services. The remaining
+    counts partition that total: ``checked == passed + skipped + failed``.
+    """
+    return {
+        "checked": len(results),
+        "passed": sum(1 for r in results if r.status == "PASS"),
+        "skipped": sum(1 for r in results if r.status == "SKIP"),
+        "failed": sum(1 for r in results if r.status == "FAIL"),
+    }
+
+
+def _print_human(results: list[ServiceResult]) -> None:
+    """Print the existing human-readable output, preserving the original format."""
+    for result in results:
+        if result.status == "PASS":
+            print(
+                f"PASS {result.name}: HTTP 401 without credentials; initialize, "
+                "tools/list and ping succeeded"
+            )
+            print(
+                f"  tools ({len(result.tools)}): "
+                f"{', '.join(result.tools) if result.tools else '(none advertised)'}"
+            )
+        elif result.status == "FAIL":
+            print(f"FAIL {result.name}: {result.reason}")
+        elif result.status == "SKIP":
+            print(f"SKIP {result.name}: {result.reason}")
+
+    # Preserve the original summary semantics: ``checked`` counts only the
+    # services that actually ran (i.e. were not skipped).
+    ran = sum(1 for r in results if r.status != "SKIP")
+    failures = sum(1 for r in results if r.status == "FAIL")
+    print(f"Summary: checked={ran}, failures={failures}")
+
+
+def _print_json(results: list[ServiceResult]) -> None:
+    """Print exactly one valid JSON document to stdout."""
+    document = {
+        "services": [
+            {
+                "name": result.name,
+                "status": result.status,
+                "tools": result.tools,
+                "reason": result.reason,
+            }
+            for result in results
+        ],
+        "summary": _build_summary(results),
+    }
+    print(json.dumps(document, sort_keys=False))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -202,50 +335,31 @@ def main() -> int:
         "--protocol-version",
         default=os.environ.get("MCP_E2E_PROTOCOL_VERSION", DEFAULT_PROTOCOL_VERSION),
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit machine-readable JSON document to stdout instead of "
+        "human-readable status lines",
+    )
     args = parser.parse_args()
 
     services = load_contract()["services"]
     selected = (
         services if args.service == "all" else {args.service: services[args.service]}
     )
-    failures = 0
-    checked = 0
 
-    for name, service in selected.items():
-        endpoint = resolve_endpoint(service, os.environ)
-        token_name = service["authentication"]["tokenEnv"]
-        token = os.environ.get(token_name, "")
-        if not endpoint or not token:
-            if service["required"]:
-                print(f"FAIL {name}: required endpoint/token environment is missing")
-                failures += 1
-            else:
-                print(f"SKIP {name}: optional endpoint/token environment is missing")
-            continue
+    results = [
+        _check_service(name, service, args.protocol_version, os.environ)
+        for name, service in selected.items()
+    ]
 
-        checked += 1
-        try:
-            tool_names = smoke_service(
-                name, endpoint, token, args.protocol_version
-            )
-        except SmokeFailure as exc:
-            print(f"FAIL {name}: {exc}")
-            failures += 1
-        except (ValueError, json.JSONDecodeError):
-            print(f"FAIL {name}: invalid JSON or MCP response")
-            failures += 1
-        else:
-            print(
-                f"PASS {name}: HTTP 401 without credentials; initialize, "
-                "tools/list and ping succeeded"
-            )
-            print(
-                f"  tools ({len(tool_names)}): "
-                f"{', '.join(tool_names) if tool_names else '(none advertised)'}"
-            )
+    if args.json:
+        _print_json(results)
+    else:
+        _print_human(results)
 
-    print(f"Summary: checked={checked}, failures={failures}")
-    return 1 if failures else 0
+    summary = _build_summary(results)
+    return 1 if summary["failed"] else 0
 
 
 if __name__ == "__main__":
