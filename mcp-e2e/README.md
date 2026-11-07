@@ -48,6 +48,55 @@ To check a single service:
     python3 mcp-e2e/scripts/smoke.py --service todo-local
     python3 mcp-e2e/scripts/smoke.py --service fiteo-backend
 
+### Machine-readable JSON output
+
+Add `--json` to emit a single JSON document to stdout instead of human-readable
+status lines. The JSON contains no endpoint URLs, tokens, Authorization headers,
+request bodies, or raw server responses. Error reasons are sanitized.
+
+    python3 mcp-e2e/scripts/smoke.py --json
+
+Example output (secret-free):
+
+```json
+{
+  "services": [
+    {
+      "name": "caracal-rag",
+      "status": "PASS",
+      "tools": ["search", "fetch"],
+      "reason": null
+    },
+    {
+      "name": "todo-local",
+      "status": "SKIP",
+      "tools": [],
+      "reason": "optional endpoint/token environment is missing"
+    },
+    {
+      "name": "fiteo-backend",
+      "status": "FAIL",
+      "tools": [],
+      "reason": "unauthenticated probe expected HTTP 401, received HTTP 200"
+    }
+  ],
+  "summary": {
+    "checked": 3,
+    "passed": 1,
+    "skipped": 1,
+    "failed": 1
+  }
+}
+```
+
+Status values:
+- `PASS`: service responded correctly to unauthenticated probe, initialize, tools/list, and ping.
+- `SKIP`: optional service (Todo Local or Fiteo Backend) missing its endpoint or token.
+- `FAIL`: required service missing its endpoint/token, or any service returned an MCP/transport/protocol error.
+
+Exit code is `1` if any selected service has status `FAIL`; otherwise `0`. Optional
+services being skipped do not cause a failure exit code.
+
 TODO_LOCAL_MCP_URL is normally exported by Aicode after it determines whether
 the direct Todo Desktop endpoint or WSL bridge is usable. The Fiteo URL is
 built as FITEO_BASE_URL plus /mcp; do not put the PAT in the URL. The default
