@@ -4,6 +4,9 @@
 The script never reads ~/.manul/.env itself. Export the required environment
 variables in the operator shell, then run this script. Token values and full
 endpoint URLs are never printed.
+
+By default the script prints human-readable per-service lines and a summary.
+Pass --json to emit exactly one machine-readable JSON document on stdout instead.
 """
 
 from __future__ import annotations
@@ -11,9 +14,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -24,9 +29,24 @@ from contract import load_contract, resolve_endpoint  # noqa: E402
 DEFAULT_PROTOCOL_VERSION = "2025-06-18"
 TIMEOUT_SECONDS = 20
 
+_URL_RE = re.compile(r"https?://[^\s\"'<>]+")
+_AUTH_HEADER_RE = re.compile(r"authorization:\s*[^\s,;]+", re.IGNORECASE)
+_BEARER_RE = re.compile(r"bearer\s+[A-Za-z0-9._~+/=-]+", re.IGNORECASE)
+
 
 class SmokeFailure(RuntimeError):
     pass
+
+
+@dataclass
+class ServiceResult:
+    """Outcome of checking a single service, shared by both output renderers."""
+
+    name: str
+    status: str  # PASS, SKIP or FAIL
+    tools: list[str] = field(default_factory=list)
+    reason: str | None = None
+    live: bool = False  # True when endpoint and token were present
 
 
 def _decode_response(content_type: str, body: bytes) -> list[dict[str, Any]]:
@@ -191,6 +211,116 @@ def smoke_service(name: str, endpoint: str, token: str, protocol_version: str) -
     return tool_names
 
 
+def _sanitize_reason(text: str) -> str:
+    """Remove any endpoint URLs, Authorization header values and Bearer tokens.
+
+    This guards the machine-readable output: the exception messages produced
+    today already avoid secrets, but a future message must not be able to leak
+    an endpoint, header or token into JSON.
+    """
+    sanitized = _URL_RE.sub("<redacted-url>", text)
+    sanitized = _AUTH_HEADER_RE.sub("Authorization: <redacted>", sanitized)
+    sanitized = _BEARER_RE.sub("Bearer <redacted-token>", sanitized)
+    return sanitized
+
+
+def run_service(
+    name: str,
+    service: dict[str, Any],
+    environ: dict[str, str],
+    protocol_version: str,
+) -> ServiceResult:
+    """Run the read-only smoke check for one service and record the outcome."""
+    endpoint = resolve_endpoint(service, environ)
+    token_name = service["authentication"]["tokenEnv"]
+    token = environ.get(token_name, "")
+
+    if not endpoint or not token:
+        required = service["required"]
+        status = "FAIL" if required else "SKIP"
+        reason = (
+            "required endpoint/token environment is missing"
+            if required
+            else "optional endpoint/token environment is missing"
+        )
+        return ServiceResult(name=name, status=status, reason=reason, live=False)
+
+    try:
+        tool_names = smoke_service(name, endpoint, token, protocol_version)
+    except SmokeFailure as exc:
+        return ServiceResult(
+            name=name, status="FAIL", reason=_sanitize_reason(str(exc)), live=True
+        )
+    except (ValueError, json.JSONDecodeError):
+        return ServiceResult(
+            name=name, status="FAIL", reason="invalid JSON or MCP response", live=True
+        )
+    return ServiceResult(name=name, status="PASS", tools=tool_names, live=True)
+
+
+def run_checks(
+    selected: dict[str, dict[str, Any]],
+    environ: dict[str, str],
+    protocol_version: str,
+) -> tuple[list[ServiceResult], int, dict[str, int]]:
+    """Check every selected service and derive both summary views."""
+    results = [
+        run_service(name, service, environ, protocol_version)
+        for name, service in selected.items()
+    ]
+    live_checked = sum(1 for result in results if result.live)
+    summary = {
+        "checked": len(results),
+        "passed": sum(1 for r in results if r.status == "PASS"),
+        "skipped": sum(1 for r in results if r.status == "SKIP"),
+        "failed": sum(1 for r in results if r.status == "FAIL"),
+    }
+    return results, live_checked, summary
+
+
+def render_human(results: list[ServiceResult], live_checked: int, summary: dict[str, int]) -> str:
+    """Render the original human-readable per-service lines and summary."""
+    lines: list[str] = []
+    for result in results:
+        if result.status == "PASS":
+            lines.append(
+                f"PASS {result.name}: HTTP 401 without credentials; initialize, "
+                "tools/list and ping succeeded"
+            )
+            lines.append(
+                f"  tools ({len(result.tools)}): "
+                f"{', '.join(result.tools) if result.tools else '(none advertised)'}"
+            )
+        elif result.status == "FAIL":
+            lines.append(f"FAIL {result.name}: {result.reason}")
+        elif result.status == "SKIP":
+            lines.append(f"SKIP {result.name}: {result.reason}")
+    lines.append(f"Summary: checked={live_checked}, failures={summary['failed']}")
+    return "\n".join(lines)
+
+
+def render_json(results: list[ServiceResult], summary: dict[str, int]) -> str:
+    """Render a single machine-readable JSON document, secret-free."""
+    document = {
+        "services": [
+            {
+                "name": result.name,
+                "status": result.status,
+                "tools": result.tools,
+                "reason": result.reason,
+            }
+            for result in results
+        ],
+        "summary": {
+            "checked": summary["checked"],
+            "passed": summary["passed"],
+            "skipped": summary["skipped"],
+            "failed": summary["failed"],
+        },
+    }
+    return json.dumps(document, indent=2)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -202,50 +332,29 @@ def main() -> int:
         "--protocol-version",
         default=os.environ.get("MCP_E2E_PROTOCOL_VERSION", DEFAULT_PROTOCOL_VERSION),
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit a single machine-readable JSON document on stdout instead of "
+        "human-readable lines.",
+    )
     args = parser.parse_args()
 
     services = load_contract()["services"]
     selected = (
         services if args.service == "all" else {args.service: services[args.service]}
     )
-    failures = 0
-    checked = 0
 
-    for name, service in selected.items():
-        endpoint = resolve_endpoint(service, os.environ)
-        token_name = service["authentication"]["tokenEnv"]
-        token = os.environ.get(token_name, "")
-        if not endpoint or not token:
-            if service["required"]:
-                print(f"FAIL {name}: required endpoint/token environment is missing")
-                failures += 1
-            else:
-                print(f"SKIP {name}: optional endpoint/token environment is missing")
-            continue
+    results, live_checked, summary = run_checks(
+        selected, os.environ, args.protocol_version
+    )
 
-        checked += 1
-        try:
-            tool_names = smoke_service(
-                name, endpoint, token, args.protocol_version
-            )
-        except SmokeFailure as exc:
-            print(f"FAIL {name}: {exc}")
-            failures += 1
-        except (ValueError, json.JSONDecodeError):
-            print(f"FAIL {name}: invalid JSON or MCP response")
-            failures += 1
-        else:
-            print(
-                f"PASS {name}: HTTP 401 without credentials; initialize, "
-                "tools/list and ping succeeded"
-            )
-            print(
-                f"  tools ({len(tool_names)}): "
-                f"{', '.join(tool_names) if tool_names else '(none advertised)'}"
-            )
+    if args.json:
+        print(render_json(results, summary))
+    else:
+        print(render_human(results, live_checked, summary))
 
-    print(f"Summary: checked={checked}, failures={failures}")
-    return 1 if failures else 0
+    return 1 if summary["failed"] else 0
 
 
 if __name__ == "__main__":
