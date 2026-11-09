@@ -15,7 +15,11 @@ on:
       manul_ref:
         description: "Manul branch, tag or commit to validate"
         required: false
-        default: "main"
+        default: "master"
+      globalskills_ref:
+        description: "Globalskills branch, tag or commit to validate"
+        required: false
+        default: "master"
 
 permissions:
   contents: read
@@ -26,7 +30,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      MANUL_E2E_REF: ${{ inputs.manul_ref || 'main' }}
+      MANUL_E2E_REF: ${{ inputs.manul_ref || 'master' }}
+      GLOBALSKILLS_E2E_REF: ${{ inputs.globalskills_ref || 'master' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install test dependencies
