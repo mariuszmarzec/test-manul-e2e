@@ -13,7 +13,9 @@ from pathlib import Path
 import pytest
 
 MANUL_REPOSITORY = "https://github.com/mariuszmarzec/manul.git"
-MANUL_REF = os.environ.get("MANUL_E2E_REF", "main")
+MANUL_REF = os.environ.get("MANUL_E2E_REF", "master")
+GLOBALSKILLS_REPOSITORY = "https://github.com/mariuszmarzec/globalskills.git"
+GLOBALSKILLS_REF = os.environ.get("GLOBALSKILLS_E2E_REF", "master")
 SKILL_RELATIVE = Path("skills/manul-github-bot")
 
 
@@ -70,14 +72,18 @@ def installer_env(home: Path, skill: Path, bin_dir: Path,
         "HOME": str(home),
         "PATH": f"{bin_dir}:{env.get('PATH', '')}",
         "MANUL_CANONICAL_DIR": str(skill),
+        "MANUL_CANONICAL_ROOT": str(skill.parents[1]),
+        "MANUL_CANONICAL_BRANCH": "master",
         "MANUL_RUNTIME_DIR": str(home / ".manul"),
-        "MANUL_HOST_SKILLS_DIR": str(home / ".globalskills" / "skills"),
         "FAKE_CRONTAB_STATE": str(crontab_state),
         "OPENCODE_CONFIG": str(home / ".config" / "opencode" / "opencode.json"),
         "CARACAL_MCP_URL": "http://127.0.0.1:3500/mcp",
-        "CARACAL_ACCESS_TOKEN": "e2e-placeholder-not-a-real-secret",
-        "TODO_LOCAL_MCP_TOKEN": "todo-placeholder-not-a-real-secret",
-        "FITEO_PAT": "fiteo-placeholder-not-a-real-secret",
+        "CARACAL_ACCESS_TOKEN": "legacy-caracal-placeholder-not-a-real-secret",
+        "TODO_LOCAL_MCP_TOKEN": "legacy-todo-placeholder-not-a-real-secret",
+        "FITEO_BASE_URL": "https://fiteo.invalid",
+        "FITEO_MANUL_PAT": "dedicated-fiteo-placeholder-not-a-real-secret",
+        "FITEO_MANUL_SHARE_USER_ID": "3",
+        "FITEO_PAT": "operator-fiteo-placeholder-not-a-real-secret",
     })
     return env
 
@@ -124,7 +130,10 @@ def test_standalone_repository_has_runtime_not_operator_config(tmp_path: Path) -
     assert (skill / "install-manul.sh").is_file()
     assert (skill / "manul-shell.zsh").is_file()
     assert (skill / "manul-env.sh").is_file()
-    assert (skill / "test_todo_mcp_client.py").is_file()
+    # Shared Todo transport and unit tests are owned by globalskills/aicode.
+    assert not (skill / "todo-mcp-client.py").exists()
+    assert not (skill / "todo-local-mcp-url.sh").exists()
+    assert not (skill / "test_todo_mcp_client.py").exists()
     assert not (skill / "config.json").exists()
     assert (skill / "config.json.example").is_file()
 
@@ -143,12 +152,24 @@ def test_installer_preserves_existing_database_and_uses_standalone_source(tmp_pa
     before = database_snapshot(db)
 
     env = installer_env(home, skill, bin_dir, crontab_state)
+    env_file = runtime / ".env"
+    env_file.write_text(
+        "OPENCODE_CONFIG=/operator/custom-opencode.json\n"
+        "KEEP_ME=preserved\n"
+        "CARACAL_MCP_URL=http://127.0.0.1:3500/mcp\n"
+        "CARACAL_ACCESS_TOKEN=legacy-caracal-placeholder\n"
+        "TODO_LOCAL_MCP_TOKEN=legacy-todo-placeholder\n"
+        "FITEO_PAT=legacy-operator-pat-placeholder\n",
+        encoding="utf-8",
+    )
+    env_file.chmod(0o600)
     import json
     config = runtime / "config.json"
     config.write_text(json.dumps({
+        "repositories": [],
         "taskSources": [{
             "type": "todo_remote_mcp", "enabled": True,
-            "url": "https://fiteo.invalid/mcp", "tokenEnv": "FITEO_PAT"
+            "url": "https://fiteo.invalid/mcp", "tokenEnv": "FITEO_MANUL_PAT"
         }]
     }), encoding="utf-8")
     result = run(
@@ -164,16 +185,23 @@ def test_installer_preserves_existing_database_and_uses_standalone_source(tmp_pa
         link = runtime / name
         assert link.is_symlink()
         assert link.resolve().is_relative_to(skill.resolve())
-    env_file = runtime / ".env"
     assert env_file.exists()
     assert env_file.stat().st_mode & 0o777 == 0o600
     contents = env_file.read_text(encoding="utf-8")
+    assert "OPENCODE_CONFIG=/operator/custom-opencode.json" in contents
+    assert "KEEP_ME=preserved" in contents
     assert f"MANUL_CANONICAL_DIR={skill}" in contents
-    assert f"MANUL_HOST_SKILLS_DIR={home / '.globalskills' / 'skills'}" in contents
-    assert "CARACAL_ACCESS_TOKEN=" in contents
-    assert "TODO_LOCAL_MCP_TOKEN=" in contents
-    assert "FITEO_PAT=" in contents
-    assert "e2e-placeholder-not-a-real-secret" not in result.stdout
+    assert f"MANUL_CANONICAL_ROOT={skill.parents[1]}" in contents
+    assert "MANUL_CANONICAL_BRANCH=master" in contents
+    assert "MANUL_HOST_SKILLS_DIR=" not in contents
+    assert "CARACAL_MCP_URL=" not in contents
+    assert "CARACAL_ACCESS_TOKEN=" not in contents
+    assert "TODO_LOCAL_MCP_TOKEN=" not in contents
+    assert "FITEO_PAT=" not in contents
+    assert "FITEO_BASE_URL=https://fiteo.invalid" in contents
+    assert "FITEO_MANUL_PAT=dedicated-fiteo-placeholder-not-a-real-secret" in contents
+    assert "FITEO_MANUL_SHARE_USER_ID=3" in contents
+    assert "not-a-real-secret" not in result.stdout
 
 
 def test_installer_refuses_missing_database_without_explicit_init(tmp_path: Path) -> None:
@@ -219,7 +247,12 @@ def test_env_bootstrap_is_atomic_scoped_and_preserves_existing_values(tmp_path: 
     runtime.mkdir()
     env_file = runtime / ".env"
     env_file.write_text(
-        "OPENCODE_CONFIG=/operator/custom-opencode.json\nKEEP_ME=present\n",
+        "OPENCODE_CONFIG=/operator/custom-opencode.json\n"
+        "KEEP_ME=present\n"
+        "CARACAL_MCP_URL=http://127.0.0.1:3500/mcp\n"
+        "CARACAL_ACCESS_TOKEN=legacy-caracal-placeholder\n"
+        "TODO_LOCAL_MCP_TOKEN=legacy-todo-placeholder\n"
+        "FITEO_PAT=legacy-operator-pat-placeholder\n",
         encoding="utf-8",
     )
     env_file.chmod(0o600)
@@ -229,22 +262,25 @@ def test_env_bootstrap_is_atomic_scoped_and_preserves_existing_values(tmp_path: 
         "HOME": str(tmp_path / "home"),
         "MANUL_CANONICAL_DIR": str(skill),
         "MANUL_CANONICAL_ROOT": str(skill.parents[1]),
-        "MANUL_CANONICAL_BRANCH": "main",
-        "MANUL_HOST_SKILLS_DIR": str(tmp_path / "globalskills" / "skills"),
+        "MANUL_CANONICAL_BRANCH": "master",
         "CARACAL_MCP_URL": "http://127.0.0.1:3500/mcp",
-        "CARACAL_ACCESS_TOKEN": "caracal-placeholder-not-real",
-        "TODO_LOCAL_MCP_TOKEN": "todo-placeholder-not-real",
-        "FITEO_PAT": "fiteo-placeholder-not-real",
+        "CARACAL_ACCESS_TOKEN": "legacy-caracal-placeholder-not-real",
+        "TODO_LOCAL_MCP_TOKEN": "legacy-todo-placeholder-not-real",
+        "FITEO_BASE_URL": "https://fiteo.invalid",
+        "FITEO_MANUL_PAT": "dedicated-fiteo-placeholder-not-real",
+        "FITEO_MANUL_SHARE_USER_ID": "3",
+        "FITEO_PAT": "operator-fiteo-placeholder-not-real",
     })
-    # The token allowlist is configuration-driven. Enable only the Fiteo source
-    # in this fixture so FITEO_PAT is expected; never test by persisting
-    # credentials merely because a similarly named process variable exists.
+    # The token allowlist is configuration-driven. Only the dedicated
+    # FITEO_MANUL_PAT configured for the enabled remote source may be persisted;
+    # the operator's FITEO_PAT must be stripped and never used as a fallback.
     import json
     config = runtime / "config.json"
     config.write_text(json.dumps({
+        "repositories": [],
         "taskSources": [{
             "type": "todo_remote_mcp", "enabled": True,
-            "url": "https://fiteo.invalid/mcp", "tokenEnv": "FITEO_PAT"
+            "url": "https://fiteo.invalid/mcp", "tokenEnv": "FITEO_MANUL_PAT"
         }]
     }), encoding="utf-8")
     run(["bash", str(skill / "manul-env.sh"), "--bootstrap", str(runtime)], env=env)
@@ -253,12 +289,15 @@ def test_env_bootstrap_is_atomic_scoped_and_preserves_existing_values(tmp_path: 
     assert "OPENCODE_CONFIG=/operator/custom-opencode.json" in contents
     assert "KEEP_ME=present" in contents
     assert f"MANUL_CANONICAL_DIR={skill}" in contents
-    assert "MANUL_CANONICAL_BRANCH=main" in contents
-    assert "MANUL_HOST_SKILLS_DIR=" in contents
-    assert "CARACAL_MCP_URL=" in contents
-    assert "CARACAL_ACCESS_TOKEN=" in contents
-    assert "TODO_LOCAL_MCP_TOKEN=" in contents
-    assert "FITEO_PAT=fiteo-placeholder-not-real" in contents
+    assert "MANUL_CANONICAL_BRANCH=master" in contents
+    assert "MANUL_HOST_SKILLS_DIR=" not in contents
+    assert "CARACAL_MCP_URL=" not in contents
+    assert "CARACAL_ACCESS_TOKEN=" not in contents
+    assert "TODO_LOCAL_MCP_TOKEN=" not in contents
+    assert "FITEO_PAT=" not in contents
+    assert "FITEO_BASE_URL=https://fiteo.invalid" in contents
+    assert "FITEO_MANUL_PAT=dedicated-fiteo-placeholder-not-real" in contents
+    assert "FITEO_MANUL_SHARE_USER_ID=3" in contents
     assert env_file.stat().st_mode & 0o777 == 0o600
     assert list(runtime.glob(".env.*")) == []
 
@@ -266,12 +305,25 @@ def test_env_bootstrap_is_atomic_scoped_and_preserves_existing_values(tmp_path: 
 def test_host_integration_uses_standalone_checkout_and_host_skills() -> None:
     import urllib.request
 
-    url = (
-        "https://raw.githubusercontent.com/mariuszmarzec/globalskills/"
-        "refactor/standalone-manul-integration/aicode/aicode"
+    base = (
+        GLOBALSKILLS_REPOSITORY
+        .replace("https://github.com/", "https://raw.githubusercontent.com/")
+        .removesuffix(".git")
+        + f"/{GLOBALSKILLS_REF}/aicode/"
     )
-    with urllib.request.urlopen(url, timeout=20) as response:
+    with urllib.request.urlopen(base + "aicode", timeout=20) as response:
         source = response.read().decode("utf-8")
     assert ".globalskills/skills/manul-github-bot" not in source
-    assert "MANUL_CANONICAL_DIR" in source
-    assert "MANUL_HOST_SKILLS_DIR" in source
+    assert 'MANUL_CANONICAL_BRANCH="${MANUL_CANONICAL_BRANCH:-master}"' in source
+    assert 'TODO_LOCAL_MCP_URL_HELPER="$AICODE_SOURCE_DIR/todo-local-mcp-url.sh"' in source
+    assert 'TODO_MCP_CLIENT="${TODO_MCP_CLIENT:-$AICODE_SOURCE_DIR/todo-mcp-client.py}"' in source
+    assert "export TODO_MCP_CLIENT TODO_LOCAL_MCP_URL_HELPER" in source
+
+    for relative_path in (
+        "todo-mcp-client.py",
+        "todo-local-mcp-url.sh",
+        "test_todo_mcp_client.py",
+    ):
+        with urllib.request.urlopen(base + relative_path, timeout=20) as response:
+            payload = response.read()
+        assert payload, f"globalskills/aicode/{relative_path} must exist"
