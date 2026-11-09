@@ -5,6 +5,8 @@ This module contains comprehensive tests for DataProcessor, Filter,
 Transformer, and utility functions.
 """
 
+import json
+
 import pytest
 from mylib.core import DataProcessor, Filter, Transformer
 from mylib.utils import (
@@ -136,6 +138,18 @@ class TestDataProcessor:
         assert state["count"] == 5
         assert state["first"] == SAMPLE_DATA[0]
         assert state["last"] == SAMPLE_DATA[4]
+
+    def test_export_returns_json_string(self, sample_data):
+        """Test export returns a JSON string of the dataset."""
+        processor = DataProcessor(sample_data)
+        result = processor.export()
+        assert isinstance(result, str)
+        assert json.loads(result) == sample_data
+
+    def test_export_empty(self):
+        """Test export on empty data."""
+        processor = DataProcessor()
+        assert processor.export() == "[]"
 
 
 # ==================== Filter Tests ====================

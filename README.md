@@ -4,7 +4,7 @@ A lightweight Python library for web application development, providing core dat
 
 ## Features
 
-- **DataProcessor**: Process and transform datasets with mapping, aggregation, and pagination
+- **DataProcessor**: Process and transform datasets with mapping, aggregation, pagination, and JSON export
 - **Filter**: Flexible filtering with equality, range, contains, and custom conditions
 - **Transformer**: Transform data structures with pluggable rules
 - **Utilities**: Input validation, sanitization, response formatting, and more
@@ -45,6 +45,9 @@ processor.map("score", lambda s: s * 10)
 
 # Paginate
 result = processor.paginate(page=1, per_page=2)
+
+# Export to JSON string
+json_output = processor.export()
 ```
 
 ### Filter

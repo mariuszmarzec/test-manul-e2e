@@ -5,6 +5,7 @@ This module provides the main processing, filtering, and transformation
 classes used throughout the framework.
 """
 
+import json
 import re
 from typing import Any, Dict, List, Optional, Callable, Union
 
@@ -128,6 +129,14 @@ class DataProcessor:
             "first": self.first(),
             "last": self.last(),
         }
+
+    def export(self) -> str:
+        """Serialize the current dataset as a JSON string.
+
+        Returns the serialized JSON directly to the caller without
+        writing to any file.
+        """
+        return json.dumps(self._data)
 
 
 class Filter:
