@@ -166,6 +166,7 @@ def test_installer_preserves_existing_database_and_uses_standalone_source(tmp_pa
     import json
     config = runtime / "config.json"
     config.write_text(json.dumps({
+        "repositories": [],
         "taskSources": [{
             "type": "todo_remote_mcp", "enabled": True,
             "url": "https://fiteo.invalid/mcp", "tokenEnv": "FITEO_MANUL_PAT"
@@ -276,6 +277,7 @@ def test_env_bootstrap_is_atomic_scoped_and_preserves_existing_values(tmp_path: 
     import json
     config = runtime / "config.json"
     config.write_text(json.dumps({
+        "repositories": [],
         "taskSources": [{
             "type": "todo_remote_mcp", "enabled": True,
             "url": "https://fiteo.invalid/mcp", "tokenEnv": "FITEO_MANUL_PAT"
