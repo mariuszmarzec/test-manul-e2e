@@ -122,6 +122,19 @@ class TestDataProcessor:
         assert result["total"] == 5
         assert result["pages"] == 3
         assert len(result["items"]) == 2
+
+    def test_export_returns_json_string(self, sample_data):
+        """Test export serializes data to a JSON string."""
+        import json
+        processor = DataProcessor(sample_data)
+        result = processor.export()
+        assert isinstance(result, str)
+        assert json.loads(result) == sample_data
+
+    def test_export_empty(self):
+        """Test export on empty data returns empty JSON array."""
+        processor = DataProcessor()
+        assert processor.export() == "[]"
     
     def test_history_tracking(self, sample_data):
         """Test that operations are tracked in history."""
