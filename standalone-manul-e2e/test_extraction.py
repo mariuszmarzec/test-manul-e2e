@@ -270,9 +270,9 @@ def test_env_bootstrap_is_atomic_scoped_and_preserves_existing_values(tmp_path: 
         "FITEO_MANUL_SHARE_USER_ID": "3",
         "FITEO_PAT": "operator-fiteo-placeholder-not-real",
     })
-    # The token allowlist is configuration-driven. Enable only the Fiteo source
-    # in this fixture so FITEO_PAT is expected; never test by persisting
-    # credentials merely because a similarly named process variable exists.
+    # The token allowlist is configuration-driven. Only the dedicated
+    # FITEO_MANUL_PAT configured for the enabled remote source may be persisted;
+    # the operator's FITEO_PAT must be stripped and never used as a fallback.
     import json
     config = runtime / "config.json"
     config.write_text(json.dumps({
@@ -304,8 +304,10 @@ def test_host_integration_uses_standalone_checkout_and_host_skills() -> None:
     import urllib.request
 
     base = (
-        "https://raw.githubusercontent.com/mariuszmarzec/globalskills/"
-        f"{GLOBALSKILLS_REF}/aicode/"
+        GLOBALSKILLS_REPOSITORY
+        .replace("https://github.com/", "https://raw.githubusercontent.com/")
+        .removesuffix(".git")
+        + f"/{GLOBALSKILLS_REF}/aicode/"
     )
     with urllib.request.urlopen(base + "aicode", timeout=20) as response:
         source = response.read().decode("utf-8")
