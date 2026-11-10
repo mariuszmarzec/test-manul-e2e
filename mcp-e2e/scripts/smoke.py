@@ -247,7 +247,46 @@ def smoke_service(
         if isinstance(tool, dict) and isinstance(tool.get("name"), str)
     )
 
-    ping_id = initialize_id + 2
+    if name == "todo-local":
+        # Exercise the exact read-only business tool used by Manul's poller.
+        # No Authorization header is sent and no task mutation is performed.
+        if "list_tasks" not in tool_names:
+            raise SmokeFailure("Todo Desktop MCP does not advertise the required list_tasks tool")
+        list_tasks_id = initialize_id + 2
+        list_status, _, list_messages = _post(
+            endpoint,
+            "tools/call",
+            list_tasks_id,
+            {"name": "list_tasks", "arguments": {}},
+            **common,
+        )
+        if list_status != 200:
+            raise SmokeFailure(
+                f"read-only list_tasks expected HTTP 200, received HTTP {list_status}"
+            )
+        list_result = _rpc_result(list_messages, list_tasks_id, "list_tasks")
+        if list_result.get("isError") is True:
+            raise SmokeFailure("read-only list_tasks returned an MCP tool error")
+        content = list_result.get("content")
+        text_items = [
+            item["text"]
+            for item in (content if isinstance(content, list) else [])
+            if isinstance(item, dict)
+            and item.get("type") == "text"
+            and isinstance(item.get("text"), str)
+        ]
+        if not text_items:
+            raise SmokeFailure("read-only list_tasks returned no text content")
+        try:
+            tasks = json.loads(text_items[0])
+        except json.JSONDecodeError:
+            raise SmokeFailure("read-only list_tasks returned invalid JSON") from None
+        if not isinstance(tasks, list):
+            raise SmokeFailure("read-only list_tasks did not return a task array")
+        ping_id = initialize_id + 3
+    else:
+        ping_id = initialize_id + 2
+
     ping_status, _, ping_messages = _post(
         endpoint, "ping", ping_id, {}, **common
     )
@@ -340,9 +379,15 @@ def _print_human(results: list[ServiceResult]) -> None:
     """Print the existing human-readable output, preserving the original format."""
     for result in results:
         if result.status == "PASS":
-            print(
-                f"PASS {result.name}: MCP initialize, tools/list and ping succeeded"
-            )
+            if result.name == "todo-local":
+                print(
+                    "PASS todo-local: unauthenticated initialize, tools/list, "
+                    "read-only list_tasks and ping succeeded"
+                )
+            else:
+                print(
+                    f"PASS {result.name}: MCP initialize, tools/list and ping succeeded"
+                )
             print(
                 f"  tools ({len(result.tools)}): "
                 f"{', '.join(result.tools) if result.tools else '(none advertised)'}"
