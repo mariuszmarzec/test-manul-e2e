@@ -63,6 +63,14 @@ def manul_skill(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return skill
 
 
+def test_manul_runtime_entrypoint_scripts_remain_executable(manul_skill: Path) -> None:
+    for script_name in ("manul-daemon.sh", "opencode-adapter.sh"):
+        script = manul_skill / script_name
+        assert script.stat().st_mode & 0o111, (
+            f"{script_name} lost its executable bit in the Manul Git tree"
+        )
+
+
 def extract_function(source: str, name: str) -> str:
     match = re.search(
         rf"(?ms)^{re.escape(name)}\(\) \{{\n.*?^\}}$",
