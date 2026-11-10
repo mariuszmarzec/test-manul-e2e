@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - "standalone-manul-e2e/**"
+      - "mcp-e2e/**"
       - ".github/workflows/standalone-manul-e2e.yml"
   push:
     branches: [main]
     paths:
       - "standalone-manul-e2e/**"
+      - "mcp-e2e/**"
       - ".github/workflows/standalone-manul-e2e.yml"
   workflow_dispatch:
     inputs:
@@ -40,6 +42,8 @@ jobs:
           sudo apt-get install -y jq sqlite3 util-linux shellcheck
           python -m pip install --upgrade pytest
       - name: Validate Python syntax
-        run: python -m compileall -q standalone-manul-e2e
+        run: python -m compileall -q standalone-manul-e2e mcp-e2e
+      - name: Run local Todo MCP contract and smoke-harness tests
+        run: python3 -m unittest discover -s mcp-e2e/tests -v
       - name: Run standalone Manul installation E2E tests
         run: pytest -q standalone-manul-e2e/test_extraction.py
