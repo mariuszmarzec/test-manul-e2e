@@ -238,6 +238,16 @@ python -m pip install pytest
 pytest -q standalone-manul-e2e/test_extraction.py
 ```
 
+### Todo report-only workspace boundary
+
+`standalone-manul-e2e/test_report_only_workspace.py` clones the selected
+`MANUL_E2E_REF` and verifies the real report-only scratch allocator and
+OpenCode adapter preflight in temporary directories with a fake OpenCode
+binary. It covers the dedicated non-lease namespace, restrictive directory
+permissions, cleanup, symlink rejection, successful report-only and ordinary
+lease preflights, and rejection of `/tmp` or nested/incorrect workspace roots.
+It never starts Manul's daemon or connects to Todo Desktop.
+
 The GitHub Actions workflow runs this suite on relevant pull requests and
 pushes. To validate a different Manul branch or commit:
 
