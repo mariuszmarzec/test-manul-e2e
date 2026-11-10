@@ -275,7 +275,7 @@ class SmokeJsonOutputTests(unittest.TestCase):
         lines = output.splitlines()
         self.assertEqual(len(lines), 4)  # PASS line, tools line, SKIP line, Summary line
         self.assertTrue(lines[0].startswith("PASS caracal-rag:"))
-        self.assertIn("HTTP 401 without credentials", lines[0])
+        self.assertIn("MCP initialize, tools/list and ping succeeded", lines[0])
         self.assertTrue(lines[1].startswith("  tools (1):"))
         self.assertTrue(lines[2].startswith("SKIP todo-local:"))
         self.assertTrue(lines[3].startswith("Summary: checked=1, failures=0"))
@@ -305,6 +305,48 @@ class SanitizeReasonTests(unittest.TestCase):
         reason = "initialize returned HTTP 401 as expected"
         sanitized = _sanitize_reason(reason)
         self.assertEqual(reason, sanitized)
+
+
+
+    def test_unauthenticated_local_todo_does_not_require_a_token(self) -> None:
+        from unittest.mock import patch
+
+        service = {
+            "required": False,
+            "endpoint": {"env": "TODO_LOCAL_MCP_URL", "suffix": ""},
+            "authentication": {"scheme": "none"},
+        }
+        with patch("smoke.smoke_service", return_value=["list_tasks"]) as smoke:
+            result = _check_service(
+                "todo-local",
+                service,
+                "2025-06-18",
+                {"TODO_LOCAL_MCP_URL": "http://127.0.0.1:8765/mcp"},
+            )
+        self.assertEqual(result.status, "PASS")
+        self.assertEqual(result.tools, ["list_tasks"])
+        smoke.assert_called_once_with(
+            "todo-local",
+            "http://127.0.0.1:8765/mcp",
+            None,
+            "2025-06-18",
+            "none",
+        )
+
+    def test_unauthenticated_local_todo_rejects_non_loopback_url(self) -> None:
+        service = {
+            "required": False,
+            "endpoint": {"env": "TODO_LOCAL_MCP_URL", "suffix": ""},
+            "authentication": {"scheme": "none"},
+        }
+        result = _check_service(
+            "todo-local",
+            service,
+            "2025-06-18",
+            {"TODO_LOCAL_MCP_URL": "http://todo.example.invalid/mcp"},
+        )
+        self.assertEqual(result.status, "FAIL")
+        self.assertIn("loopback", result.reason or "")
 
 
 if __name__ == "__main__":
