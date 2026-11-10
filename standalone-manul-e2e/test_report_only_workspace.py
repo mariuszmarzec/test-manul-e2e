@@ -92,7 +92,7 @@ scratch="$(report_only_workspace_create)"
 [[ "$(stat -c '%a' "$scratch")" == "700" ]]
 report_only_workspace_cleanup "$scratch"
 [[ ! -e "$scratch" ]]
-printf '%s\\\\n' "$scratch"
+printf '%s\\n' "$scratch"
 """
     env = os.environ.copy()
     env["MANUL_WORKSPACE"] = str(workspace_base)
