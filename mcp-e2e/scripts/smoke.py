@@ -9,6 +9,7 @@ endpoint URLs are never printed.
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import os
 import re
@@ -18,6 +19,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -143,30 +145,69 @@ def _rpc_result(messages: list[dict[str, Any]], request_id: int, label: str) -> 
     raise SmokeFailure(f"{label} did not return a matching JSON-RPC result")
 
 
-def smoke_service(name: str, endpoint: str, token: str, protocol_version: str) -> list[str]:
+def is_loopback_http_url(endpoint: str) -> bool:
+    """Return true only for an absolute HTTP URL whose host is loopback."""
+    try:
+        parsed = urlsplit(endpoint)
+        host = parsed.hostname
+        if parsed.scheme != "http" or not host:
+            return False
+        if parsed.username or parsed.password or parsed.fragment:
+            return False
+        if host.casefold() == "localhost":
+            return True
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def smoke_service(
+    name: str,
+    endpoint: str,
+    token: str | None,
+    protocol_version: str,
+    authentication_scheme: str = "Bearer",
+) -> list[str]:
     init_params = {
         "protocolVersion": protocol_version,
         "capabilities": {},
         "clientInfo": {"name": "manul-mcp-e2e", "version": "0.1.0"},
     }
 
-    # Authentication is tested independently from MCP initialization.
-    unauth_status, _, _ = _post(
-        endpoint, "initialize", 1, init_params, token=None
-    )
-    if unauth_status != 401:
-        raise SmokeFailure(
-            f"unauthenticated probe expected HTTP 401, received HTTP {unauth_status}"
+    # Local Todo Desktop MCP is intentionally unauthenticated and loopback-only.
+    # Remote services use an independent Bearer token and must reject an
+    # unauthenticated initialize request before the authenticated handshake.
+    if authentication_scheme == "none":
+        status, headers, messages = _post(
+            endpoint, "initialize", 1, init_params, token=None
         )
+        if status != 200:
+            raise SmokeFailure(
+                f"unauthenticated initialize expected HTTP 200, received HTTP {status}"
+            )
+        initialize_id = 1
+        request_token = None
+    elif authentication_scheme == "Bearer":
+        unauth_status, _, _ = _post(
+            endpoint, "initialize", 1, init_params, token=None
+        )
+        if unauth_status != 401:
+            raise SmokeFailure(
+                f"unauthenticated probe expected HTTP 401, received HTTP {unauth_status}"
+            )
+        status, headers, messages = _post(
+            endpoint, "initialize", 2, init_params, token=token
+        )
+        if status != 200:
+            raise SmokeFailure(
+                f"authenticated initialize expected HTTP 200, received HTTP {status}"
+            )
+        initialize_id = 2
+        request_token = token
+    else:
+        raise SmokeFailure("unsupported MCP authentication scheme")
 
-    status, headers, messages = _post(
-        endpoint, "initialize", 2, init_params, token=token
-    )
-    if status != 200:
-        raise SmokeFailure(
-            f"authenticated initialize expected HTTP 200, received HTTP {status}"
-        )
-    init_result = _rpc_result(messages, 2, "initialize")
+    init_result = _rpc_result(messages, initialize_id, "initialize")
     negotiated_version = init_result.get("protocolVersion")
     if not negotiated_version:
         raise SmokeFailure("initialize response omitted protocolVersion")
@@ -176,7 +217,7 @@ def smoke_service(name: str, endpoint: str, token: str, protocol_version: str) -
         None,
     )
     common = {
-        "token": token,
+        "token": request_token,
         "session_id": session_id,
         "protocol_version": negotiated_version,
     }
@@ -188,14 +229,15 @@ def smoke_service(name: str, endpoint: str, token: str, protocol_version: str) -
             f"initialized notification returned HTTP {notify_status}"
         )
 
+    tools_id = initialize_id + 1
     tools_status, _, tools_messages = _post(
-        endpoint, "tools/list", 3, {}, **common
+        endpoint, "tools/list", tools_id, {}, **common
     )
     if tools_status != 200:
         raise SmokeFailure(
             f"tools/list expected HTTP 200, received HTTP {tools_status}"
         )
-    tools_result = _rpc_result(tools_messages, 3, "tools/list")
+    tools_result = _rpc_result(tools_messages, tools_id, "tools/list")
     tools = tools_result.get("tools")
     if not isinstance(tools, list):
         raise SmokeFailure("tools/list response omitted the tools array")
@@ -205,12 +247,52 @@ def smoke_service(name: str, endpoint: str, token: str, protocol_version: str) -
         if isinstance(tool, dict) and isinstance(tool.get("name"), str)
     )
 
+    if name == "todo-local":
+        # Exercise the exact read-only business tool used by Manul's poller.
+        # No Authorization header is sent and no task mutation is performed.
+        if "list_tasks" not in tool_names:
+            raise SmokeFailure("Todo Desktop MCP does not advertise the required list_tasks tool")
+        list_tasks_id = initialize_id + 2
+        list_status, _, list_messages = _post(
+            endpoint,
+            "tools/call",
+            list_tasks_id,
+            {"name": "list_tasks", "arguments": {}},
+            **common,
+        )
+        if list_status != 200:
+            raise SmokeFailure(
+                f"read-only list_tasks expected HTTP 200, received HTTP {list_status}"
+            )
+        list_result = _rpc_result(list_messages, list_tasks_id, "list_tasks")
+        if list_result.get("isError") is True:
+            raise SmokeFailure("read-only list_tasks returned an MCP tool error")
+        content = list_result.get("content")
+        text_items = [
+            item["text"]
+            for item in (content if isinstance(content, list) else [])
+            if isinstance(item, dict)
+            and item.get("type") == "text"
+            and isinstance(item.get("text"), str)
+        ]
+        if not text_items:
+            raise SmokeFailure("read-only list_tasks returned no text content")
+        try:
+            tasks = json.loads(text_items[0])
+        except json.JSONDecodeError:
+            raise SmokeFailure("read-only list_tasks returned invalid JSON") from None
+        if not isinstance(tasks, list):
+            raise SmokeFailure("read-only list_tasks did not return a task array")
+        ping_id = initialize_id + 3
+    else:
+        ping_id = initialize_id + 2
+
     ping_status, _, ping_messages = _post(
-        endpoint, "ping", 4, {}, **common
+        endpoint, "ping", ping_id, {}, **common
     )
     if ping_status != 200:
         raise SmokeFailure(f"ping expected HTTP 200, received HTTP {ping_status}")
-    _rpc_result(ping_messages, 4, "ping")
+    _rpc_result(ping_messages, ping_id, "ping")
     return tool_names
 
 
@@ -222,30 +304,40 @@ def _check_service(
 ) -> ServiceResult:
     """Run the smoke check for a single service and return a ServiceResult."""
     endpoint = resolve_endpoint(service, env)
-    token_name = service["authentication"]["tokenEnv"]
-    token = env.get(token_name, "")
+    authentication = service.get("authentication", {})
+    authentication_scheme = authentication.get("scheme", "Bearer")
+    token_name = authentication.get("tokenEnv")
+    token = env.get(token_name, "") if token_name else None
+    missing_credentials = authentication_scheme == "Bearer" and not token
 
-    if not endpoint or not token:
+    if not endpoint or missing_credentials:
+        missing = "endpoint" if not endpoint else "Bearer token"
         if service["required"]:
             return ServiceResult(
                 name=name,
                 status="FAIL",
                 tools=[],
-                reason=_sanitize_reason(
-                    f"required endpoint/token environment is missing"
-                ),
+                reason=_sanitize_reason(f"required MCP {missing} environment is missing"),
             )
         return ServiceResult(
             name=name,
             status="SKIP",
             tools=[],
-            reason=_sanitize_reason(
-                f"optional endpoint/token environment is missing"
-            ),
+            reason=_sanitize_reason(f"optional MCP {missing} environment is missing"),
+        )
+
+    if authentication_scheme == "none" and not is_loopback_http_url(endpoint):
+        return ServiceResult(
+            name=name,
+            status="FAIL",
+            tools=[],
+            reason="unauthenticated local MCP endpoint must be an HTTP loopback URL",
         )
 
     try:
-        tool_names = smoke_service(name, endpoint, token, protocol_version)
+        tool_names = smoke_service(
+            name, endpoint, token, protocol_version, authentication_scheme
+        )
     except SmokeFailure as exc:
         return ServiceResult(
             name=name,
@@ -287,10 +379,15 @@ def _print_human(results: list[ServiceResult]) -> None:
     """Print the existing human-readable output, preserving the original format."""
     for result in results:
         if result.status == "PASS":
-            print(
-                f"PASS {result.name}: HTTP 401 without credentials; initialize, "
-                "tools/list and ping succeeded"
-            )
+            if result.name == "todo-local":
+                print(
+                    "PASS todo-local: unauthenticated initialize, tools/list, "
+                    "read-only list_tasks and ping succeeded"
+                )
+            else:
+                print(
+                    f"PASS {result.name}: MCP initialize, tools/list and ping succeeded"
+                )
             print(
                 f"  tools ({len(result.tools)}): "
                 f"{', '.join(result.tools) if result.tools else '(none advertised)'}"

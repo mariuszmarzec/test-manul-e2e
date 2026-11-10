@@ -18,13 +18,21 @@ class ServiceContractTests(unittest.TestCase):
             {"caracal-rag", "todo-local", "fiteo-backend"},
         )
 
-    def test_endpoint_and_token_environment_variables_are_unique(self) -> None:
+    def test_endpoint_and_bearer_token_environment_variables_are_unique(self) -> None:
         services = load_contract()["services"]
         endpoints = [s["endpoint"]["env"] for s in services.values()]
-        tokens = [s["authentication"]["tokenEnv"] for s in services.values()]
+        tokens = [
+            s["authentication"]["tokenEnv"]
+            for s in services.values()
+            if s["authentication"]["scheme"] == "Bearer"
+        ]
         self.assertEqual(len(endpoints), len(set(endpoints)))
         self.assertEqual(len(tokens), len(set(tokens)))
         self.assertTrue(set(endpoints).isdisjoint(tokens))
+
+    def test_todo_local_contract_is_unauthenticated(self) -> None:
+        authentication = load_contract()["services"]["todo-local"]["authentication"]
+        self.assertEqual(authentication, {"scheme": "none"})
 
     def test_caracal_is_required_and_other_services_are_optional(self) -> None:
         services = load_contract()["services"]
@@ -46,17 +54,22 @@ class ServiceContractTests(unittest.TestCase):
     def test_fixture_contains_no_credential_values_or_live_endpoints(self) -> None:
         raw = (ROOT / "fixtures" / "service-contract.json").read_text(encoding="utf-8")
         contract = json.loads(raw)
-        for service in contract["services"].values():
+        for name, service in contract["services"].items():
             self.assertIn("env", service["endpoint"])
-            self.assertIn("tokenEnv", service["authentication"])
-            self.assertNotIn("token", service["authentication"])
-            self.assertNotIn("value", service["authentication"])
+            authentication = service["authentication"]
+            self.assertNotIn("token", authentication)
+            self.assertNotIn("value", authentication)
+            if authentication["scheme"] == "Bearer":
+                self.assertIn("tokenEnv", authentication)
+            else:
+                self.assertEqual(name, "todo-local")
+                self.assertNotIn("tokenEnv", authentication)
         self.assertNotIn("Bearer ", raw)
         self.assertNotIn("https://", raw)
 
-    def test_invalid_shared_token_variable_is_rejected(self) -> None:
+    def test_duplicate_bearer_token_variable_is_rejected(self) -> None:
         contract = load_contract()
-        contract["services"]["todo-local"]["authentication"]["tokenEnv"] = "FITEO_PAT"
+        contract["services"]["fiteo-backend"]["authentication"]["tokenEnv"] = "CARACAL_ACCESS_TOKEN"
         with self.assertRaises(ValueError):
             validate_contract(contract)
 

@@ -4,11 +4,11 @@ This suite is isolated from the repository's Flask/WebFrame examples and from
 standalone-manul-e2e/. It verifies three independent MCP dependencies used by
 the Manul/OpenCode path.
 
-| Server ID | Purpose | Endpoint environment | Credential environment | Required |
+| Server ID | Purpose | Endpoint environment | Authentication | Required |
 |---|---|---|---|---|
-| caracal-rag | Manul retrieval/context service | CARACAL_MCP_URL | CARACAL_ACCESS_TOKEN | Yes |
-| todo-local | Todo Desktop local MCP, direct or WSL bridge | TODO_LOCAL_MCP_URL | TODO_LOCAL_MCP_TOKEN | No |
-| fiteo-backend | Remote Fiteo backend MCP, under /mcp | FITEO_BASE_URL | FITEO_PAT | No |
+| caracal-rag | Manul retrieval/context service | CARACAL_MCP_URL | Bearer: CARACAL_ACCESS_TOKEN | Yes |
+| todo-local | Todo Desktop local MCP, direct or WSL bridge | TODO_LOCAL_MCP_URL | None (loopback only) | No |
+| fiteo-backend | Remote Fiteo backend MCP, under /mcp | FITEO_BASE_URL | Bearer: FITEO_PAT | No |
 
 The service contract fixture contains no endpoint or token values. It is
 deliberately not an OpenCode config template: the supported OpenCode schema and
@@ -27,18 +27,25 @@ decoding. They do not contact any live service.
 
 ## Read-only live MCP smoke checks
 
-The smoke client checks each configured endpoint in this order:
+The smoke client follows each service's declared authentication mode:
 
-1. An unauthenticated initialize request must receive HTTP 401.
-2. A request with that service's own Bearer token must initialize successfully.
-3. notifications/initialized, tools/list and ping must succeed.
-4. The script prints server/tool names and HTTP outcomes, but never prints
-   tokens or full endpoint URLs.
+- Bearer services must reject an unauthenticated initialize request with HTTP
+  401, then accept initialization with that service's own token.
+- Todo Desktop local MCP is unauthenticated by design. Its URL must be an HTTP
+  loopback URL, and initialize must succeed without an Authorization header.
+- For every service, notifications/initialized, tools/list and ping must
+  succeed.
 
-It does not call business tools or mutate Todo data.
+The script prints server/tool names and HTTP outcomes, but never prints tokens
+or full endpoint URLs.
+
+For Todo Desktop, it additionally calls only the read-only `list_tasks` tool
+after `tools/list` and verifies that the response is a JSON task array. It
+does not create, update, complete, or delete Todo tasks.
 
 The script does not read .env files. Export approved operator variables in the
-current shell using the operator's normal secret-handling procedure, then run:
+current shell using the operator's normal secret-handling procedure. For Todo
+Desktop, set only TODO_LOCAL_MCP_URL; do not set a token. Then run:
 
     python3 mcp-e2e/scripts/smoke.py
 
@@ -92,14 +99,16 @@ Example output (secret-free):
 Status values:
 - `PASS`: service responded correctly to unauthenticated probe, initialize, tools/list, and ping.
 - `SKIP`: optional service (Todo Local or Fiteo Backend) missing its endpoint or token.
-- `FAIL`: required service missing its endpoint/token, or any service returned an MCP/transport/protocol error.
+- `FAIL`: required service missing its endpoint or credentials, a local unauthenticated endpoint is not loopback, or any service returned an MCP/transport/protocol error.
 
 Exit code is `1` if any selected service has status `FAIL`; otherwise `0`. Optional
 services being skipped do not cause a failure exit code.
 
 TODO_LOCAL_MCP_URL is normally exported by Aicode after it determines whether
-the direct Todo Desktop endpoint or WSL bridge is usable. The Fiteo URL is
-built as FITEO_BASE_URL plus /mcp; do not put the PAT in the URL. The default
+the direct Todo Desktop endpoint or WSL bridge is usable. The local Todo
+endpoint does not use a token; the smoke harness rejects non-loopback URLs.
+The Fiteo URL is built as FITEO_BASE_URL plus /mcp; do not put the PAT in the
+URL. The default
 MCP protocol version is 2025-06-18; override it with
 MCP_E2E_PROTOCOL_VERSION only when the installed OpenCode/client contract
 requires another negotiated version.

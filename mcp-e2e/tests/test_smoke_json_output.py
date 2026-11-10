@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from smoke import ServiceResult, _check_service, _sanitize_reason  # noqa: E402
+from smoke import ServiceResult, _check_service, _sanitize_reason, smoke_service  # noqa: E402
 
 
 class MockService:
@@ -275,10 +275,72 @@ class SmokeJsonOutputTests(unittest.TestCase):
         lines = output.splitlines()
         self.assertEqual(len(lines), 4)  # PASS line, tools line, SKIP line, Summary line
         self.assertTrue(lines[0].startswith("PASS caracal-rag:"))
-        self.assertIn("HTTP 401 without credentials", lines[0])
+        self.assertIn("MCP initialize, tools/list and ping succeeded", lines[0])
         self.assertTrue(lines[1].startswith("  tools (1):"))
         self.assertTrue(lines[2].startswith("SKIP todo-local:"))
         self.assertTrue(lines[3].startswith("Summary: checked=1, failures=0"))
+
+
+class LocalTodoSmokeTests(unittest.TestCase):
+    def test_local_todo_smoke_calls_read_only_list_tasks_without_auth(self) -> None:
+        from unittest.mock import call, patch
+
+        responses = [
+            (200, {"Mcp-Session-Id": "fixture"}, [{
+                "id": 1, "result": {"protocolVersion": "2025-06-18"}
+            }]),
+            (202, {}, []),
+            (200, {}, [{
+                "id": 2, "result": {"tools": [{"name": "list_tasks"}]}
+            }]),
+            (200, {}, [{
+                "id": 3, "result": {
+                    "content": [{"type": "text", "text": "[]"}]
+                }
+            }]),
+            (200, {}, [{"id": 4, "result": {}}]),
+        ]
+        with patch("smoke._post", side_effect=responses) as post:
+            tools = smoke_service(
+                "todo-local",
+                "http://127.0.0.1:8765/mcp",
+                None,
+                "2025-06-18",
+                "none",
+            )
+
+        self.assertEqual(tools, ["list_tasks"])
+        self.assertEqual(post.call_count, 5)
+        list_call = post.call_args_list[3]
+        self.assertEqual(list_call.args[1], "tools/call")
+        self.assertEqual(
+            list_call.args[3],
+            {"name": "list_tasks", "arguments": {}},
+        )
+        self.assertIsNone(list_call.kwargs["token"])
+
+    def test_local_todo_smoke_fails_when_list_tasks_is_missing(self) -> None:
+        from unittest.mock import patch
+        from smoke import SmokeFailure
+
+        responses = [
+            (200, {}, [{
+                "id": 1, "result": {"protocolVersion": "2025-06-18"}
+            }]),
+            (202, {}, []),
+            (200, {}, [{
+                "id": 2, "result": {"tools": [{"name": "other_tool"}]}
+            }]),
+        ]
+        with patch("smoke._post", side_effect=responses):
+            with self.assertRaisesRegex(SmokeFailure, "list_tasks"):
+                smoke_service(
+                    "todo-local",
+                    "http://127.0.0.1:8765/mcp",
+                    None,
+                    "2025-06-18",
+                    "none",
+                )
 
 
 class SanitizeReasonTests(unittest.TestCase):
@@ -305,6 +367,48 @@ class SanitizeReasonTests(unittest.TestCase):
         reason = "initialize returned HTTP 401 as expected"
         sanitized = _sanitize_reason(reason)
         self.assertEqual(reason, sanitized)
+
+
+
+    def test_unauthenticated_local_todo_does_not_require_a_token(self) -> None:
+        from unittest.mock import patch
+
+        service = {
+            "required": False,
+            "endpoint": {"env": "TODO_LOCAL_MCP_URL", "suffix": ""},
+            "authentication": {"scheme": "none"},
+        }
+        with patch("smoke.smoke_service", return_value=["list_tasks"]) as smoke:
+            result = _check_service(
+                "todo-local",
+                service,
+                "2025-06-18",
+                {"TODO_LOCAL_MCP_URL": "http://127.0.0.1:8765/mcp"},
+            )
+        self.assertEqual(result.status, "PASS")
+        self.assertEqual(result.tools, ["list_tasks"])
+        smoke.assert_called_once_with(
+            "todo-local",
+            "http://127.0.0.1:8765/mcp",
+            None,
+            "2025-06-18",
+            "none",
+        )
+
+    def test_unauthenticated_local_todo_rejects_non_loopback_url(self) -> None:
+        service = {
+            "required": False,
+            "endpoint": {"env": "TODO_LOCAL_MCP_URL", "suffix": ""},
+            "authentication": {"scheme": "none"},
+        }
+        result = _check_service(
+            "todo-local",
+            service,
+            "2025-06-18",
+            {"TODO_LOCAL_MCP_URL": "http://todo.example.invalid/mcp"},
+        )
+        self.assertEqual(result.status, "FAIL")
+        self.assertIn("loopback", result.reason or "")
 
 
 if __name__ == "__main__":
