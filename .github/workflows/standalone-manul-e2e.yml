@@ -46,4 +46,4 @@ jobs:
       - name: Run local Todo MCP contract and smoke-harness tests
         run: python3 -m unittest discover -s mcp-e2e/tests -v
       - name: Run standalone Manul installation E2E tests
-        run: pytest -q standalone-manul-e2e/test_extraction.py
+        run: pytest -q standalone-manul-e2e/test_extraction.py standalone-manul-e2e/test_report_only_workspace.py
