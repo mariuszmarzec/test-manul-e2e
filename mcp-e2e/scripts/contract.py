@@ -35,15 +35,28 @@ def validate_contract(contract: dict[str, Any]) -> None:
         endpoint = service.get("endpoint", {})
         auth = service.get("authentication", {})
         endpoint_env = endpoint.get("env")
+        auth_scheme = auth.get("scheme")
         token_env = auth.get("tokenEnv")
-        if not endpoint_env or not token_env:
-            raise ValueError(f"{name} must define separate endpoint and token environment variables")
-        if endpoint_env in endpoint_envs or token_env in token_envs:
-            raise ValueError("endpoint and token environment variables must be unique per service")
+        if not endpoint_env:
+            raise ValueError(f"{name} must define an endpoint environment variable")
+        if endpoint_env in endpoint_envs:
+            raise ValueError("endpoint environment variables must be unique per service")
         endpoint_envs.add(endpoint_env)
-        token_envs.add(token_env)
-        if auth.get("header") != "Authorization" or auth.get("scheme") != "Bearer":
-            raise ValueError(f"{name} must use an explicit Bearer Authorization header")
+
+        if auth_scheme == "Bearer":
+            if not token_env or auth.get("header") != "Authorization":
+                raise ValueError(f"{name} must define a Bearer Authorization token environment variable")
+            if token_env in token_envs or token_env in endpoint_envs:
+                raise ValueError("endpoint and token environment variables must be unique per service")
+            token_envs.add(token_env)
+        elif auth_scheme == "none":
+            if token_env is not None or auth.get("header") is not None:
+                raise ValueError(f"{name} uses no authentication and must not declare a token or header")
+            if name != "todo-local":
+                raise ValueError("only Todo Desktop local MCP may use unauthenticated loopback access")
+        else:
+            raise ValueError(f"{name} has an unsupported authentication scheme")
+
         if not isinstance(service.get("required"), bool):
             raise ValueError(f"{name} must declare whether it is required")
 
@@ -51,6 +64,8 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise ValueError("Caracal must remain a required dependency")
     if services["todo-local"]["required"] is not False:
         raise ValueError("Todo Local must remain optional")
+    if services["todo-local"]["authentication"].get("scheme") != "none":
+        raise ValueError("Todo Desktop local MCP must remain unauthenticated")
     if services["fiteo-backend"]["required"] is not False:
         raise ValueError("Fiteo Backend must remain optional")
     if services["fiteo-backend"]["endpoint"].get("suffix") != "/mcp":
