@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from smoke import ServiceResult, _check_service, _sanitize_reason  # noqa: E402
+from smoke import ServiceResult, _check_service, _sanitize_reason, smoke_service  # noqa: E402
 
 
 class MockService:
@@ -279,6 +279,68 @@ class SmokeJsonOutputTests(unittest.TestCase):
         self.assertTrue(lines[1].startswith("  tools (1):"))
         self.assertTrue(lines[2].startswith("SKIP todo-local:"))
         self.assertTrue(lines[3].startswith("Summary: checked=1, failures=0"))
+
+
+class LocalTodoSmokeTests(unittest.TestCase):
+    def test_local_todo_smoke_calls_read_only_list_tasks_without_auth(self) -> None:
+        from unittest.mock import call, patch
+
+        responses = [
+            (200, {"Mcp-Session-Id": "fixture"}, [{
+                "id": 1, "result": {"protocolVersion": "2025-06-18"}
+            }]),
+            (202, {}, []),
+            (200, {}, [{
+                "id": 2, "result": {"tools": [{"name": "list_tasks"}]}
+            }]),
+            (200, {}, [{
+                "id": 3, "result": {
+                    "content": [{"type": "text", "text": "[]"}]
+                }
+            }]),
+            (200, {}, [{"id": 4, "result": {}}]),
+        ]
+        with patch("smoke._post", side_effect=responses) as post:
+            tools = smoke_service(
+                "todo-local",
+                "http://127.0.0.1:8765/mcp",
+                None,
+                "2025-06-18",
+                "none",
+            )
+
+        self.assertEqual(tools, ["list_tasks"])
+        self.assertEqual(post.call_count, 5)
+        list_call = post.call_args_list[3]
+        self.assertEqual(list_call.args[1], "tools/call")
+        self.assertEqual(
+            list_call.args[3],
+            {"name": "list_tasks", "arguments": {}},
+        )
+        self.assertIsNone(list_call.kwargs["token"])
+
+    def test_local_todo_smoke_fails_when_list_tasks_is_missing(self) -> None:
+        from unittest.mock import patch
+        from smoke import SmokeFailure
+
+        responses = [
+            (200, {}, [{
+                "id": 1, "result": {"protocolVersion": "2025-06-18"}
+            }]),
+            (202, {}, []),
+            (200, {}, [{
+                "id": 2, "result": {"tools": [{"name": "other_tool"}]}
+            }]),
+        ]
+        with patch("smoke._post", side_effect=responses):
+            with self.assertRaisesRegex(SmokeFailure, "list_tasks"):
+                smoke_service(
+                    "todo-local",
+                    "http://127.0.0.1:8765/mcp",
+                    None,
+                    "2025-06-18",
+                    "none",
+                )
 
 
 class SanitizeReasonTests(unittest.TestCase):
