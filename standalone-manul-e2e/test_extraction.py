@@ -130,10 +130,10 @@ def test_standalone_repository_has_runtime_not_operator_config(tmp_path: Path) -
     assert (skill / "install-manul.sh").is_file()
     assert (skill / "manul-shell.zsh").is_file()
     assert (skill / "manul-env.sh").is_file()
-    # Shared Todo transport and unit tests are owned by globalskills/aicode.
-    assert not (skill / "todo-mcp-client.py").exists()
-    assert not (skill / "todo-local-mcp-url.sh").exists()
-    assert not (skill / "test_todo_mcp_client.py").exists()
+    # Standalone Manul owns its local Todo transport and its unit tests.
+    assert (skill / "todo-mcp-client.py").is_file()
+    assert (skill / "todo-local-mcp-url.sh").is_file()
+    assert (skill / "test_todo_mcp_client.py").is_file()
     assert not (skill / "config.json").exists()
     assert (skill / "config.json.example").is_file()
 
@@ -181,7 +181,10 @@ def test_installer_preserves_existing_database_and_uses_standalone_source(tmp_pa
     assert result.returncode == 0, result.stdout
     assert database_snapshot(db) == before
     assert not (runtime / ".enabled").exists()
-    for name in ("manul-daemon.sh", "manul-status.sh", "manul-comments-remove.sh"):
+    for name in (
+        "manul-daemon.sh", "manul-status.sh", "manul-comments-remove.sh",
+        "todo-mcp-client.py", "todo-local-mcp-url.sh",
+    ):
         link = runtime / name
         assert link.is_symlink()
         assert link.resolve().is_relative_to(skill.resolve())
@@ -302,7 +305,7 @@ def test_env_bootstrap_is_atomic_scoped_and_preserves_existing_values(tmp_path: 
     assert list(runtime.glob(".env.*")) == []
 
 
-def test_host_integration_uses_standalone_checkout_and_host_skills() -> None:
+def test_host_integration_uses_standalone_checkout_and_host_skills(tmp_path: Path) -> None:
     import urllib.request
 
     base = (
@@ -315,15 +318,12 @@ def test_host_integration_uses_standalone_checkout_and_host_skills() -> None:
         source = response.read().decode("utf-8")
     assert ".globalskills/skills/manul-github-bot" not in source
     assert 'MANUL_CANONICAL_BRANCH="${MANUL_CANONICAL_BRANCH:-master}"' in source
-    assert 'TODO_LOCAL_MCP_URL_HELPER="$AICODE_SOURCE_DIR/todo-local-mcp-url.sh"' in source
-    assert 'TODO_MCP_CLIENT="${TODO_MCP_CLIENT:-$AICODE_SOURCE_DIR/todo-mcp-client.py}"' in source
+    assert 'TODO_LOCAL_MCP_URL_HELPER="$MANUL_CANONICAL_DIR/todo-local-mcp-url.sh"' in source
+    assert 'TODO_MCP_CLIENT="${TODO_MCP_CLIENT:-$MANUL_CANONICAL_DIR/todo-mcp-client.py}"' in source
     assert "export TODO_MCP_CLIENT TODO_LOCAL_MCP_URL_HELPER" in source
+    assert "AICODE_SOURCE_DIR/todo-mcp-client.py" not in source
+    assert "AICODE_SOURCE_DIR/todo-local-mcp-url.sh" not in source
 
-    for relative_path in (
-        "todo-mcp-client.py",
-        "todo-local-mcp-url.sh",
-        "test_todo_mcp_client.py",
-    ):
-        with urllib.request.urlopen(base + relative_path, timeout=20) as response:
-            payload = response.read()
-        assert payload, f"globalskills/aicode/{relative_path} must exist"
+    skill = clone_manul(tmp_path / "manul")
+    for relative_path in ("todo-mcp-client.py", "todo-local-mcp-url.sh", "test_todo_mcp_client.py"):
+        assert (skill / relative_path).is_file(), f"standalone Manul is missing {relative_path}"
