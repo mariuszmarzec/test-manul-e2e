@@ -21,9 +21,7 @@
         "suffix": ""
       },
       "authentication": {
-        "header": "Authorization",
-        "scheme": "Bearer",
-        "tokenEnv": "TODO_LOCAL_MCP_TOKEN"
+        "scheme": "none"
       }
     },
     "fiteo-backend": {
