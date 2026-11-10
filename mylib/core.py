@@ -105,8 +105,27 @@ class DataProcessor:
         """Return a copy of the operation history."""
         return list(self._history)
 
+    @staticmethod
+    def _validate_positive_int(value: Any, name: str) -> None:
+        """Ensure value is a positive integer (bool is rejected explicitly)."""
+        if type(value) is not int or value <= 0:
+            raise ValueError(
+                f"{name} must be a positive integer, got {value!r}"
+            )
+
     def paginate(self, page: int, per_page: int) -> Dict[str, Any]:
-        """Return paginated results with metadata."""
+        """
+        Return paginated results with metadata.
+
+        Args:
+            page: 1-based page number (positive integer).
+            per_page: Number of items per page (positive integer).
+
+        Raises:
+            ValueError: If page or per_page is not a positive integer.
+        """
+        self._validate_positive_int(page, "page")
+        self._validate_positive_int(per_page, "per_page")
         total = len(self._data)
         start = (page - 1) * per_page
         end = start + per_page
