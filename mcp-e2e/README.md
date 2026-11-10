@@ -39,7 +39,9 @@ The smoke client follows each service's declared authentication mode:
 The script prints server/tool names and HTTP outcomes, but never prints tokens
 or full endpoint URLs.
 
-It does not call business tools or mutate Todo data.
+For Todo Desktop, it additionally calls only the read-only `list_tasks` tool
+after `tools/list` and verifies that the response is a JSON task array. It
+does not create, update, complete, or delete Todo tasks.
 
 The script does not read .env files. Export approved operator variables in the
 current shell using the operator's normal secret-handling procedure. For Todo
