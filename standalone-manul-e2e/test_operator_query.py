@@ -88,6 +88,8 @@ def make_opencode_fixture(
     manul_config.write_text('{"agents":["researcher"]}', encoding="utf-8")
 
     env = os.environ.copy()
+    env.pop("TODO_LOCAL_MCP_AVAILABLE", None)
+    env.pop("TODO_LOCAL_MCP_CONNECTED", None)
     env.update(
         {
             "HOME": str(home),
