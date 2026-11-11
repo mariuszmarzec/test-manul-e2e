@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      MANUL_E2E_REF: ${{ inputs.manul_ref || (github.event_name == 'pull_request' && 'feat/operator-query-cli') || 'master' }}
+      MANUL_E2E_REF: ${{ inputs.manul_ref || 'master' }}
       GLOBALSKILLS_E2E_REF: ${{ inputs.globalskills_ref || 'master' }}
     steps:
       - uses: actions/checkout@v4
