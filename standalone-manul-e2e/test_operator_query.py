@@ -105,7 +105,7 @@ def make_opencode_fixture(
             "MANUL_TASK_WORKSPACE_ROOT": str(task_workspace),
             "MANUL_TASK_WORKDIR": "",
             "MANUL_TASK_EXECUTION_KIND": "operator_query",
-            "FIDEO_BASE_URL": "",
+            "FITEO_BASE_URL": "",
             "FITEO_MANUL_PAT": "",
             "TODO_LOCAL_MCP_URL": "",
         }
@@ -198,6 +198,47 @@ def test_opencode_adapter_rejects_workspace_outside_operator_query_namespace(
     payload = json.loads(result.stdout.strip().splitlines()[-1])
     assert payload["status"] == "FAILED"
     assert "operator query workspace" in payload["summary"]
+
+
+def test_opencode_adapter_fails_closed_on_reserved_agent_collision(
+    manul_skill: Path,
+    tmp_path: Path,
+) -> None:
+    workspace_base = tmp_path / "workspace"
+    task_workspace = workspace_base / "operator-query" / "oq-e2e"
+    task_workspace.mkdir(parents=True)
+    env, prompt, operator_config = make_opencode_fixture(
+        skill=manul_skill,
+        fixture_root=tmp_path / "fixture",
+        workspace_base=workspace_base,
+        task_workspace=task_workspace,
+    )
+    operator_config.write_text(
+        json.dumps({
+            "permissions": [],
+            "mcp": {"servers": {}},
+            "agent": {
+                "manul-operator-query": {
+                    "mode": "primary",
+                    "tools": {"*": True},
+                }
+            },
+        }),
+        encoding="utf-8",
+    )
+    before = hashlib.sha256(operator_config.read_bytes()).hexdigest()
+
+    result = run_opencode_preflight(
+        skill=manul_skill,
+        fixture_root=tmp_path / "fixture",
+        task_workspace=task_workspace,
+        env=env,
+    )
+    assert result.returncode == 65, result.stdout
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert payload["status"] == "FAILED"
+    assert "reserved OpenCode agent" in payload["summary"]
+    assert hashlib.sha256(operator_config.read_bytes()).hexdigest() == before
 
 
 def test_opencode_adapter_rejects_symlinked_operator_query_parent(
