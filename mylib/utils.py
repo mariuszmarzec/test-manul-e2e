@@ -200,24 +200,36 @@ def chunk_list(lst: List[Any], size: int) -> List[List[Any]]:
 def safe_get(d: Dict[str, Any], key_path: str, default: Any = None) -> Any:
     """
     Safely get a nested value from a dictionary using dot notation.
-    
+
+    The dot-separated path can traverse dictionaries and lists.
+    For dictionaries, each path segment is a text key. For lists, a segment
+    must be a non-negative decimal index (e.g., "0"). Out-of-range indices,
+    invalid segments, or traversal into types that do not support the next
+    segment return the provided default.
+
     Args:
         d: Dictionary to access
-        key_path: Dot-separated key path (e.g., "user.name")
+        key_path: Dot-separated key path (e.g., "user.name" or "users.0.name")
         default: Default value if key not found
-    
+
     Returns:
         Value at key path or default
     """
     keys = key_path.split(".")
     current = d
-    
+
     for key in keys:
         if isinstance(current, dict) and key in current:
             current = current[key]
+        elif isinstance(current, list) and key.isdecimal():
+            index = int(key)
+            if 0 <= index < len(current):
+                current = current[index]
+            else:
+                return default
         else:
             return default
-    
+
     return current
 
 
