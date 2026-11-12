@@ -96,16 +96,40 @@ def run_manul_suite(
     tmp_path: Path,
     *,
     timeout: int = 240,
+    diagnose_heartbeat: bool = False,
 ) -> str:
     script = skill / script_name
     assert script.is_file(), f"Required Manul regression suite is missing: {script_name}"
-    result = run(
-        ["bash", str(script)],
-        env=isolated_env(tmp_path),
-        cwd=skill,
-        timeout=timeout,
-    )
-    return result.stdout
+    diagnostic_script: Path | None = None
+    if diagnose_heartbeat:
+        source = script.read_text(encoding="utf-8")
+        needle = 'assert_eq 1 "$STUCK_HEARTBEAT_RC" "heartbeat exits unhealthy after bounded database failures"'
+        diagnostic = """printf 'DEBUG_HEARTBEAT pid=%s worker=%s rc=%s\\n' "$STUCK_HEARTBEAT_PID" "$CURRENT_TEST_PID" "$STUCK_HEARTBEAT_RC"
+echo 'DEBUG_HEARTBEAT_LIFECYCLE_BEGIN'
+cat "$LIFECYCLE_LOG" 2>/dev/null || true
+echo 'DEBUG_HEARTBEAT_LIFECYCLE_END'
+echo 'DEBUG_HEARTBEAT_DAEMON_BEGIN'
+tail -n 40 "$LOG" 2>/dev/null || true
+echo 'DEBUG_HEARTBEAT_DAEMON_END'
+sqlite3 "$DB" "SELECT commentId || '|' || status || '|' || COALESCE(workerPid,0) || '|' || COALESCE(claimToken,'') FROM processed_comments WHERE commentId='heartbeat-stuck';" 2>/dev/null || true
+"""
+        assert needle in source, "Heartbeat regression assertion was not found"
+        diagnostic_script = skill / "_e2e_debug_worker_lease_recovery.sh"
+        diagnostic_script.write_text(
+            source.replace(needle, diagnostic + needle), encoding="utf-8"
+        )
+        script = diagnostic_script
+    try:
+        result = run(
+            ["bash", str(script)],
+            env=isolated_env(tmp_path),
+            cwd=skill,
+            timeout=timeout,
+        )
+        return result.stdout
+    finally:
+        if diagnostic_script is not None:
+            diagnostic_script.unlink(missing_ok=True)
 
 
 def test_colon_delimited_task_done_marker_is_normalized_once(
@@ -137,7 +161,7 @@ def test_heartbeat_lease_recovery_and_process_tree_cleanup(
     manul_skill: Path, tmp_path: Path
 ) -> None:
     output = run_manul_suite(
-        manul_skill, "test_worker_lease_recovery.sh", tmp_path, timeout=300
+        manul_skill, "test_worker_lease_recovery.sh", tmp_path, timeout=300, diagnose_heartbeat=True
     )
     assert "executor recovery kills the runner tree" in output
     assert "dead worker task requeued" in output
