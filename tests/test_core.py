@@ -122,6 +122,121 @@ class TestDataProcessor:
         assert result["total"] == 5
         assert result["pages"] == 3
         assert len(result["items"]) == 2
+
+    def test_paginate_first_page_schema(self, sample_data):
+        """Test first page returns correct items and full schema."""
+        processor = DataProcessor(sample_data)
+        result = processor.paginate(1, 2)
+        assert set(result.keys()) == {
+            "items", "page", "per_page", "total", "pages"
+        }
+        assert result["items"] == sample_data[0:2]
+        assert result["total"] == 5
+        assert result["pages"] == 3
+
+    def test_paginate_middle_page(self, sample_data):
+        """Test a middle page returns the correct slice."""
+        processor = DataProcessor(sample_data)
+        result = processor.paginate(2, 2)
+        assert result["items"] == sample_data[2:4]
+        assert len(result["items"]) == 2
+
+    def test_paginate_last_incomplete_page(self, sample_data):
+        """Test last page with fewer items than per_page."""
+        processor = DataProcessor(sample_data)
+        result = processor.paginate(3, 2)
+        assert result["items"] == sample_data[4:]
+        assert len(result["items"]) == 1
+        assert result["pages"] == 3
+
+    def test_paginate_per_page_larger_than_total(self, sample_data):
+        """Test per_page larger than total returns all items in one page."""
+        processor = DataProcessor(sample_data)
+        result = processor.paginate(1, 10)
+        assert result["items"] == sample_data
+        assert result["pages"] == 1
+
+    def test_paginate_page_out_of_range(self, sample_data):
+        """Test out-of-range page returns empty items without raising."""
+        processor = DataProcessor(sample_data)
+        result = processor.paginate(99, 2)
+        assert result["items"] == []
+        assert result["total"] == 5
+        assert result["pages"] == 3
+        assert result["page"] == 99
+
+    def test_paginate_empty_collection(self):
+        """Test pagination on empty data returns pages == 0."""
+        processor = DataProcessor([])
+        result = processor.paginate(1, 5)
+        assert result["items"] == []
+        assert result["total"] == 0
+        assert result["pages"] == 0
+        assert result["page"] == 1
+        assert result["per_page"] == 5
+
+    @pytest.mark.parametrize("page,per_page", [
+        (0, 2),
+        (1, 0),
+        (0, 0),
+    ])
+    def test_paginate_zero_invalid(self, page, per_page):
+        """Test zero values raise ValueError."""
+        processor = DataProcessor(SAMPLE_DATA)
+        with pytest.raises(ValueError):
+            processor.paginate(page, per_page)
+
+    @pytest.mark.parametrize("page,per_page", [
+        (-1, 2),
+        (1, -1),
+        (-5, -3),
+    ])
+    def test_paginate_negative_invalid(self, page, per_page):
+        """Test negative values raise ValueError."""
+        processor = DataProcessor(SAMPLE_DATA)
+        with pytest.raises(ValueError):
+            processor.paginate(page, per_page)
+
+    @pytest.mark.parametrize("page,per_page", [
+        (1.0, 2),
+        (1, 2.0),
+        (1.5, 2.5),
+    ])
+    def test_paginate_float_invalid(self, page, per_page):
+        """Test float values raise ValueError."""
+        processor = DataProcessor(SAMPLE_DATA)
+        with pytest.raises(ValueError):
+            processor.paginate(page, per_page)
+
+    @pytest.mark.parametrize("page,per_page", [
+        ("1", 2),
+        (1, "2"),
+    ])
+    def test_paginate_string_invalid(self, page, per_page):
+        """Test string values raise ValueError."""
+        processor = DataProcessor(SAMPLE_DATA)
+        with pytest.raises(ValueError):
+            processor.paginate(page, per_page)
+
+    @pytest.mark.parametrize("page,per_page", [
+        (True, 2),
+        (1, True),
+        (False, 2),
+        (1, False),
+    ])
+    def test_paginate_boolean_invalid(self, page, per_page):
+        """Test boolean values raise ValueError (bool is int subclass)."""
+        processor = DataProcessor(SAMPLE_DATA)
+        with pytest.raises(ValueError):
+            processor.paginate(page, per_page)
+
+    def test_paginate_none_invalid(self):
+        """Test None values raise ValueError."""
+        processor = DataProcessor(SAMPLE_DATA)
+        with pytest.raises(ValueError):
+            processor.paginate(None, 2)
+        with pytest.raises(ValueError):
+            processor.paginate(1, None)
     
     def test_history_tracking(self, sample_data):
         """Test that operations are tracked in history."""
