@@ -42,6 +42,8 @@ def test_invalid_indices_and_out_of_bounds():
     assert safe_get(data, "items.-1") is None
     assert safe_get(data, "items.10") is None
     assert safe_get(data, "items.foo") is None
+    # Superscript digits satisfy str.isdigit(), but cannot be parsed by int().
+    assert safe_get(data, "items.²", default="N/A") == "N/A"
     assert safe_get(data, "items.0.extra") is None
 
 
