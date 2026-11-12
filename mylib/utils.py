@@ -221,7 +221,7 @@ def safe_get(d: Dict[str, Any], key_path: str, default: Any = None) -> Any:
     for key in keys:
         if isinstance(current, dict) and key in current:
             current = current[key]
-        elif isinstance(current, list) and key.isdigit():
+        elif isinstance(current, list) and key.isdecimal():
             index = int(key)
             if 0 <= index < len(current):
                 current = current[index]
