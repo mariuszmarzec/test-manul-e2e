@@ -47,6 +47,7 @@ def manul_skill(tmp_path_factory: pytest.TempPathFactory) -> Path:
         "migrate-sdd-agent-config.sh",
         "test_sdd_workflow.sh",
         "test_sdd_agent_config_migration.sh",
+        "test_caracal_opencode_runtime.sh",
     ):
         assert (skill / name).is_file(), f"Missing SDD runtime component: {name}"
     return skill
@@ -89,6 +90,14 @@ def test_shared_globalskills_sdd_agent_and_skill_are_available(
     assert "Specification-Driven Development (SDD)" in readme
     assert "/manul sdd bootstrap" in readme
     assert "human approval" in skill.read_text(encoding="utf-8").lower()
+
+
+def test_manul_caracal_provider_environment_is_refreshed_for_opencode_tasks(
+    manul_skill: Path,
+) -> None:
+    result = run(["bash", str(manul_skill / "test_caracal_opencode_runtime.sh")])
+    assert "Caracal OpenCode runtime tests: passed" in result.stdout
+    assert "process-scoped" in result.stdout
 
 
 def test_sdd_runtime_entrypoints_keep_executable_modes(manul_skill: Path) -> None:

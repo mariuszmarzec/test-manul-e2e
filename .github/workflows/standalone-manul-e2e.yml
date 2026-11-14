@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      MANUL_E2E_REF: ${{ inputs.manul_ref || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feature/sdd-workflow-e2e' && 'feature/sdd-workflow-runtime') || 'master' }}
+      MANUL_E2E_REF: ${{ inputs.manul_ref || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'fix/caracal-opencode-e2e' && 'fix/caracal-opencode-provider-runtime') || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feature/sdd-workflow-e2e' && 'feature/sdd-workflow-runtime') || 'master' }}
       GLOBALSKILLS_E2E_REF: ${{ inputs.globalskills_ref || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feature/sdd-workflow-e2e' && 'feature/sdd-agent-skill-workflow') || 'master' }}
     steps:
       - uses: actions/checkout@v4
