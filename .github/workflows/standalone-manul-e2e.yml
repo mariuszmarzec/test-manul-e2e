@@ -32,8 +32,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      MANUL_E2E_REF: ${{ inputs.manul_ref || 'master' }}
-      GLOBALSKILLS_E2E_REF: ${{ inputs.globalskills_ref || 'master' }}
+      MANUL_E2E_REF: ${{ inputs.manul_ref || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feature/sdd-workflow-e2e' && 'feature/sdd-workflow-runtime') || 'master' }}
+      GLOBALSKILLS_E2E_REF: ${{ inputs.globalskills_ref || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feature/sdd-workflow-e2e' && 'feature/sdd-agent-skill-workflow') || 'master' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install test dependencies
@@ -46,4 +46,4 @@ jobs:
       - name: Run local Todo MCP contract and smoke-harness tests
         run: python3 -m unittest discover -s mcp-e2e/tests -v
       - name: Run standalone Manul installation E2E tests
-        run: pytest -q standalone-manul-e2e/test_extraction.py standalone-manul-e2e/test_report_only_workspace.py standalone-manul-e2e/test_operator_query.py
+        run: pytest -q standalone-manul-e2e/test_extraction.py standalone-manul-e2e/test_report_only_workspace.py standalone-manul-e2e/test_operator_query.py standalone-manul-e2e/test_sdd_workflow.py

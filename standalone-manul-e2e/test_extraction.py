@@ -180,6 +180,13 @@ def test_installer_preserves_existing_database_and_uses_standalone_source(tmp_pa
 
     assert result.returncode == 0, result.stdout
     assert database_snapshot(db) == before
+    migrated_agents = __import__("json").loads(config.read_text(encoding="utf-8"))["agents"]
+    assert "orchestrator" in migrated_agents
+    assert "sdd" in migrated_agents
+    assert (runtime / "migrate-sdd-agent-config.sh").is_symlink()
+    assert (runtime / "sdd-policy.py").is_symlink()
+    assert (runtime / "workflow-state.py").is_symlink()
+    assert list(runtime.glob("config.json.bak.sdd-agents.*"))
     assert not (runtime / ".enabled").exists()
     for name in (
         "manul-daemon.sh", "manul-status.sh", "manul-comments-remove.sh",
