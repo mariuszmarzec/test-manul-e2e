@@ -91,6 +91,23 @@ def test_shared_globalskills_sdd_agent_and_skill_are_available(
     assert "human approval" in skill.read_text(encoding="utf-8").lower()
 
 
+def test_sdd_runtime_entrypoints_keep_executable_modes(manul_skill: Path) -> None:
+    for name in (
+        "manul-daemon.sh",
+        "poll.sh",
+        "opencode-adapter.sh",
+        "manul-github-events.sh",
+        "install-manul.sh",
+        "install-manul-symlinks.sh",
+        "migrate-sdd-agent-config.sh",
+        "test_sdd_workflow.sh",
+        "test_sdd_agent_config_migration.sh",
+    ):
+        assert (manul_skill / name).stat().st_mode & 0o111, (
+            f"{name} must remain executable in the Manul Git tree"
+        )
+
+
 def test_manul_installer_and_dispatcher_wire_sdd_before_agent_execution(
     manul_skill: Path,
 ) -> None:
