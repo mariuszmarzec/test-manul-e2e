@@ -259,6 +259,31 @@ The suite does not start the daemon or connect to GitHub, Todo Desktop, Fiteo,
 or Caracal. It does not access the operator's real `~/.manul` or credentials.
 
 
+
+### Specification-driven development (SDD) policy and resume contract
+
+`standalone-manul-e2e/test_sdd_workflow.py` validates the SDD integration
+against the selected Manul and Globalskills refs. On the dedicated SDD E2E PR,
+the workflow automatically tests the corresponding feature branches rather
+than silently cloning `master`.
+
+The suite executes Manul's isolated SDD contract tests and checks:
+
+- missing config leaves a repository on the standard workflow;
+- `/manul sdd` fails when SDD is uninitialized, while
+  `/manul sdd bootstrap` is the only permitted bootstrap path;
+- an initialized repository routes ordinary tasks through the Orchestrator,
+  rejects direct coding-role bypasses, and protects review-fix work;
+- missing SDD agent/skill/allow-list prerequisites fail closed;
+- legacy Manul configuration is migrated safely and idempotently;
+- workflow checkpoints are persisted, redacted, deduplicated and restored by
+  repository conversation;
+- the same canonical SDD agent and skill are present in Globalskills for local
+  OpenCode and Manul usage.
+
+These are isolated CI fixtures. They never start the operator's Manul daemon,
+read the user's `~/.manul`, or modify Shopping List.
+
 ### Mandatory gate before full live E2E on the operator machine
 
 The green GitHub Actions job above is an isolated installer-safety test. It is
