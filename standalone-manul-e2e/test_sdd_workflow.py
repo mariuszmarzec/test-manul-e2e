@@ -47,6 +47,7 @@ def manul_skill(tmp_path_factory: pytest.TempPathFactory) -> Path:
         "migrate-sdd-agent-config.sh",
         "test_sdd_workflow.sh",
         "test_sdd_agent_config_migration.sh",
+        "test_opencode_agent_discovery.sh",
         "test_caracal_opencode_runtime.sh",
     ):
         assert (skill / name).is_file(), f"Missing SDD runtime component: {name}"
@@ -64,6 +65,14 @@ def test_existing_manul_config_migration_is_safe_and_idempotent(
 ) -> None:
     result = run(["bash", str(manul_skill / "test_sdd_agent_config_migration.sh")])
     assert "SDD agent config migration:" in result.stdout
+    assert "0 failed" in result.stdout
+
+
+def test_opencode_native_agent_discovery_handles_v2_and_v1(
+    manul_skill: Path,
+) -> None:
+    result = run(["bash", str(manul_skill / "test_opencode_agent_discovery.sh")])
+    assert "OpenCode agent discovery tests:" in result.stdout
     assert "0 failed" in result.stdout
 
 
