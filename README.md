@@ -238,6 +238,20 @@ python -m pip install pytest
 pytest -q standalone-manul-e2e/test_extraction.py
 ```
 
+### Todo repository routing
+
+`standalone-manul-e2e/test_todo_repository_routing.py` clones the selected
+`MANUL_E2E_REF` and runs Manul's real `test_todo_task_sources.sh` regression
+harness with fixture MCP responses in an isolated temporary home. It covers
+repository references in root and nested Todo descriptions, configured
+`owner/repo` and `repo <slug>` routing, ambiguous short names, slug-prefix
+collisions, conflicting repository targets, catalog-independent configured
+routing, and preservation of informational report-only tasks. It does not
+connect to Todo Desktop, Fiteo, the installed Manul daemon, or user data.
+
+The workflow maps this E2E branch to the corresponding Manul feature branch,
+so the PR validates the exact resolver implementation rather than `master`.
+
 ### Todo report-only workspace boundary
 
 `standalone-manul-e2e/test_report_only_workspace.py` clones the selected
