@@ -249,8 +249,8 @@ collisions, conflicting repository targets, catalog-independent configured
 routing, and preservation of informational report-only tasks. It does not
 connect to Todo Desktop, Fiteo, the installed Manul daemon, or user data.
 
-The workflow maps this E2E branch to the corresponding Manul feature branch,
-so the PR validates the exact resolver implementation rather than `master`.
+The workflow uses the Manul `master` branch, so the suite validates the
+resolver implementation after it has been merged into the main runtime.
 
 ### Todo report-only workspace boundary
 
