@@ -35,7 +35,7 @@ def run(
     )
     if result.returncode:
         raise AssertionError(
-            f"Command failed ({result.returncode}): {' '.join(command)}\\n{result.stdout}"
+            f"Command failed ({result.returncode}): {' '.join(command)}\n{result.stdout}"
         )
     return result
 
