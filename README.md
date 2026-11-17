@@ -252,16 +252,21 @@ connect to Todo Desktop, Fiteo, the installed Manul daemon, or user data.
 The workflow uses the Manul `master` branch, so the suite validates the
 resolver implementation after it has been merged into the main runtime.
 
-### Todo repository-only execution and status feedback
+### Todo repository and direct-answer execution
 
-`standalone-manul-e2e/test_todo_repository_only.py` verifies that local and
-remote Todo adapters only emit repository execution, that the common poller
-rejects legacy report-only entries, and that missing repository details,
-`TASK_NEEDS_USER`, and terminal failures are persisted as OPEN child tasks.
-It also checks that the old report-only Todo answer-delivery path is absent.
+`standalone-manul-e2e/test_todo_repository_only.py` verifies the two Todo
+execution contracts: implementation tasks require an allowlisted repository;
+clear informational questions may use the dedicated `answer` kind without a
+repository, through the existing tool-free operator-query runtime. It also
+checks that legacy report-only entries are rejected, answer text is persisted
+as a verified Todo child before root completion, and missing/ambiguous
+implementation targets plus `TASK_NEEDS_USER` and terminal failures create
+OPEN child tasks.
+
 The companion routing E2E runs Manul's real fixture-backed regression harness
-for local and remote MCP providers, including idempotent child creation,
-read-back verification, and edits that resume routing.
+for local and remote MCP providers, including question-vs-implementation
+classification, idempotent answer/status child creation, read-back verification,
+and edits that resume routing.
 
 The GitHub Actions workflow runs these suites against the Manul branch selected
 by the E2E PR head, without starting the installed operator daemon or touching
