@@ -43,6 +43,7 @@ def manul_skill(tmp_path_factory: pytest.TempPathFactory) -> Path:
     ])
     skill = checkout / SKILL_RELATIVE
     assert (skill / "manul-daemon.sh").is_file()
+    assert (skill / "manul-daemon.sh").stat().st_mode & 0o111
     assert (skill / "todo-task-source-utils.sh").is_file()
     return skill
 
@@ -78,6 +79,7 @@ def test_missing_or_ambiguous_repository_is_saved_as_an_open_subtask(manul_skill
     assert "todo_task_publish_update()" in utils
     assert "todo_task_markdown_format" in utils
     assert "Todo status update was not readable after creation" in utils
+    assert "MANUL_TASK_UPDATE:v1" in utils
     assert "source-version" in utils
     assert "task_source_publish_update()" in source
     assert 'update_status="needs_input"' in local
