@@ -121,6 +121,7 @@ def test_clear_questions_without_repository_use_answer_execution(manul_skill: Pa
     assert "This is a normal informational answer" in utils
     assert 'adapter_execution_kind="operator_query"' in executor
     assert 'if [ "$execution_kind" = "answer" ]; then' in executor
+    assert "ANSWER_RUNTIME_UNSUPPORTED" in executor
     assert 'if [ "$execution_kind" != "answer" ] && { [ "$agent" = "sdd" ] || [ "$sdd_policy" = "true" ]; }; then' in executor
     opencode = (manul_skill / "opencode-adapter.sh").read_text(encoding="utf-8")
     claude = (manul_skill / "claude-code-adapter.sh").read_text(encoding="utf-8")
@@ -134,6 +135,7 @@ def test_clear_questions_without_repository_use_answer_execution(manul_skill: Pa
     assert 'task_source_publish_update "$CONFIG" "$TASK_SOURCE_TYPE" "$answer_source_id" answered "$answer_text"' in daemon
     assert "TODO_ANSWER_PUBLISHED" in daemon
     assert "answer_workspace_cleanup" in daemon
+    assert "Current date/time at answer execution" in daemon
 
 
 def test_answer_child_is_persisted_before_todo_tree_completion(manul_skill: Path) -> None:
