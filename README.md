@@ -246,33 +246,27 @@ harness with fixture MCP responses in an isolated temporary home. It covers
 repository references in root and nested Todo descriptions, configured
 `owner/repo` and `repo <slug>` routing, ambiguous short names, slug-prefix
 collisions, conflicting repository targets, catalog-independent configured
-routing, and preservation of informational report-only tasks. It does not
+routing, and creation of visible OPEN blocker subtasks for missing, ambiguous, and disallowed repository references. Editing a blocker resumes routing. It does
 connect to Todo Desktop, Fiteo, the installed Manul daemon, or user data.
 
 The workflow uses the Manul `master` branch, so the suite validates the
 resolver implementation after it has been merged into the main runtime.
 
-### Todo report-only workspace boundary
+### Todo repository-only execution and status feedback
 
-`standalone-manul-e2e/test_report_only_workspace.py` clones the selected
-`MANUL_E2E_REF` and verifies the real report-only scratch allocator and
-OpenCode adapter preflight in temporary directories with a fake OpenCode
-binary. It covers the dedicated non-lease namespace, restrictive directory
-permissions, cleanup, symlink rejection, successful report-only and ordinary
-lease preflights, and rejection of `/tmp` or nested/incorrect workspace roots.
-It never starts Manul's daemon or connects to Todo Desktop.
+`standalone-manul-e2e/test_todo_repository_only.py` verifies that local and
+remote Todo adapters only emit repository execution, that the common poller
+rejects legacy report-only entries, and that missing repository details,
+`TASK_NEEDS_USER`, and terminal failures are persisted as OPEN child tasks.
+It also checks that the old report-only Todo answer-delivery path is absent.
+The companion routing E2E runs Manul's real fixture-backed regression harness
+for local and remote MCP providers, including idempotent child creation,
+read-back verification, and edits that resume routing.
 
-The GitHub Actions workflow runs this suite on relevant pull requests and
-pushes. To validate a different Manul branch or commit:
-
-```bash
-MANUL_E2E_REF=<branch-or-commit> pytest -q standalone-manul-e2e/test_extraction.py
-```
-
-The suite does not start the daemon or connect to GitHub, Todo Desktop, Fiteo,
-or Caracal. It does not access the operator's real `~/.manul` or credentials.
-
-
+The GitHub Actions workflow runs these suites against the Manul branch selected
+by the E2E PR head, without starting the installed operator daemon or touching
+real Todo data. To validate another Manul ref, use the workflow's
+`manul_ref` input.
 
 ### Specification-driven development (SDD) policy and resume contract
 
