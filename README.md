@@ -278,7 +278,7 @@ real Todo data. To validate another Manul ref, use the workflow's
 `standalone-manul-e2e/test_proactive_pr_watcher.py` clones the selected
 `MANUL_E2E_REF` and runs the fixture-backed proactive PR watcher contract
 against a disposable SQLite database and fake GitHub responses. It verifies
-PR-author allow-list inheritance, independent scope enforcement, PR
+PR-author allow-list inheritance (including the jq array predicate), independent scope enforcement, PR
 conversation creation without a source task, discussion/inline/reply discovery,
 bot/self-comment suppression, and idempotent polling. It also checks that the
 poller and runtime symlink installer include the watcher.
