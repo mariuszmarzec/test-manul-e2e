@@ -78,3 +78,4 @@ def test_conflict_resolve_and_merge_configuration_and_polling(manul_skill: Path)
     assert 'scan_conflicted_prs "$repo"' in poller
     assert "headRefOid,baseRefOid" in watcher
     assert "Do not use" in watcher and "--admin" in watcher
+    assert "gh pr merge $pr_num --squash" in watcher
