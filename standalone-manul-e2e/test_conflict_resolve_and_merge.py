@@ -47,6 +47,7 @@ def manul_skill(tmp_path_factory: pytest.TempPathFactory) -> Path:
         "poll.sh",
         "config.json.example",
         "test_conflict_resolve_and_merge.sh",
+        "test_source_revalidation.sh",
     ):
         assert (skill / name).is_file(), (
             f"Missing conflict resolver component {name} from Manul ref {MANUL_REF}"
@@ -78,4 +79,14 @@ def test_conflict_resolve_and_merge_configuration_and_polling(manul_skill: Path)
     assert 'scan_conflicted_prs "$repo"' in poller
     assert "headRefOid,baseRefOid" in watcher
     assert "Do not use" in watcher and "--admin" in watcher
+
+
+def test_conflict_task_source_revalidation(manul_skill: Path) -> None:
+    result = run(["bash", "-x", str(manul_skill / "test_source_revalidation.sh")], cwd=manul_skill)
+    assert "Results:" in result.stdout
+    assert "FAIL: conflict resolution task with open PR is fresh" not in result.stdout
+    assert "FAIL: conflict resolution task with closed PR is stale" not in result.stdout
     assert "gh pr merge $pr_num --squash" in watcher
+
+    revalidation = (manul_skill / "task-source-revalidate.sh").read_text(encoding="utf-8")
+    assert "conflict_resolve_merge:*) echo \\"pr_state\\" ;;" in revalidation
