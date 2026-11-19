@@ -273,6 +273,19 @@ by the E2E PR head, without starting the installed operator daemon or touching
 real Todo data. To validate another Manul ref, use the workflow's
 `manul_ref` input.
 
+### Proactive PR watcher
+
+`standalone-manul-e2e/test_proactive_pr_watcher.py` clones the selected
+`MANUL_E2E_REF` and runs the fixture-backed proactive PR watcher contract
+against a disposable SQLite database and fake GitHub responses. It verifies
+PR-author allow-list inheritance (including the jq array predicate), independent scope enforcement, PR
+conversation creation without a source task, discussion/inline/reply discovery,
+bot/self-comment suppression, and idempotent polling. It also checks that the
+poller and runtime symlink installer include the watcher.
+
+The test does not start the installed Manul daemon, contact a live GitHub PR,
+connect to Todo MCP, or inspect operator state.
+
 ### Specification-driven development (SDD) policy and resume contract
 
 `standalone-manul-e2e/test_sdd_workflow.py` validates the SDD integration
