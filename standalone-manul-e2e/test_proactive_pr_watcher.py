@@ -73,7 +73,10 @@ def test_proactive_pr_configuration_and_runtime_wiring(manul_skill: Path) -> Non
     assert config["ciFix"]["prScope"] == "OnlyManulPr"
 
     poller = (manul_skill / "poll.sh").read_text(encoding="utf-8")
+    watcher = (manul_skill / "manul-pr-watcher.sh").read_text(encoding="utf-8")
     symlinks = (manul_skill / "install-manul-symlinks.sh").read_text(encoding="utf-8")
     assert 'source "$SCRIPT_DIR/manul-pr-watcher.sh"' in poller
     assert "scan_proactive_pr_comments \"$repo\"" in poller
+    assert "pr_watcher_ensure_baseline" in watcher
+    assert '--arg baseline "$watcher_baseline"' in watcher
     assert '"manul-pr-watcher.sh"' in symlinks
