@@ -79,4 +79,5 @@ def test_proactive_pr_configuration_and_runtime_wiring(manul_skill: Path) -> Non
     assert "scan_proactive_pr_comments \"$repo\"" in poller
     assert "pr_watcher_ensure_baseline" in watcher
     assert '--arg baseline "$watcher_baseline"' in watcher
+    assert "status IN (\'task_created\', \'completed\')" in watcher
     assert '"manul-pr-watcher.sh"' in symlinks
