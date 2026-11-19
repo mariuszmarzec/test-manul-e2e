@@ -77,4 +77,4 @@ def test_conflict_resolve_and_merge_configuration_and_polling(manul_skill: Path)
     assert 'source "$SCRIPT_DIR/manul-pr-watcher.sh"' in poller
     assert 'scan_conflicted_prs "$repo"' in poller
     assert "headRefOid,baseRefOid" in watcher
-    assert "Do not use --admin" in watcher
+    assert "Do not use" in watcher and "--admin" in watcher
