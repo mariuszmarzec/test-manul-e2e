@@ -79,6 +79,7 @@ def test_conflict_resolve_and_merge_configuration_and_polling(manul_skill: Path)
     assert 'scan_conflicted_prs "$repo"' in poller
     assert "headRefOid,baseRefOid" in watcher
     assert "Do not use" in watcher and "--admin" in watcher
+    assert "gh pr merge $pr_num --squash" in watcher
 
 
 def test_conflict_task_source_revalidation(manul_skill: Path) -> None:
@@ -86,7 +87,6 @@ def test_conflict_task_source_revalidation(manul_skill: Path) -> None:
     assert "Results:" in result.stdout
     assert "FAIL: conflict resolution task with open PR is fresh" not in result.stdout
     assert "FAIL: conflict resolution task with closed PR is stale" not in result.stdout
-    assert "gh pr merge $pr_num --squash" in watcher
 
     revalidation = (manul_skill / "task-source-revalidate.sh").read_text(encoding="utf-8")
-    assert "conflict_resolve_merge:*) echo \\"pr_state\\" ;;" in revalidation
+    assert 'conflict_resolve_merge:*) echo "pr_state" ;;' in revalidation
