@@ -286,6 +286,19 @@ poller and runtime symlink installer include the watcher.
 The test does not start the installed Manul daemon, contact a live GitHub PR,
 connect to Todo MCP, or inspect operator state.
 
+### CI-fix activity wait and retry cooldown
+
+`standalone-manul-e2e/test_ci_fix_cooldown.py` clones the selected
+`MANUL_E2E_REF` and runs Manul's fixture-backed CI-fix cooldown contract
+against a disposable SQLite database and a deterministic clock. It verifies
+that the first-fix timer starts from the later of the failed-check completion
+and PR activity, that subsequent fixes observe the 60-minute cooldown, that
+same-numbered PRs in different repositories remain isolated, and that
+pre-upgrade synthetic CI tasks are migrated.
+
+The test does not start the installed Manul daemon, contact a live GitHub PR,
+or inspect operator state.
+ 
 ### Specification-driven development (SDD) policy and resume contract
 
 `standalone-manul-e2e/test_sdd_workflow.py` validates the SDD integration
