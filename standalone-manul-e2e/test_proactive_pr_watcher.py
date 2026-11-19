@@ -58,7 +58,7 @@ def manul_skill(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 def test_proactive_pr_watcher_fixture_regressions(manul_skill: Path) -> None:
-    result = run(["bash", str(manul_skill / "test_pr_watcher.sh")], cwd=manul_skill)
+    result = run(["bash", "-x", str(manul_skill / "test_pr_watcher.sh")], cwd=manul_skill)
     assert "All proactive PR watcher tests passed." in result.stdout
 
 
