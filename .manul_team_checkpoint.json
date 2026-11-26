@@ -1,0 +1,79 @@
+{
+  "workflowId": "team:mariuszmarzec/test-manul-e2e:7194790995",
+  "workflowType": "team",
+  "repository": "mariuszmarzec/test-manul-e2e",
+  "phase": "integration",
+  "status": "waiting_children",
+  "data": {
+    "schemaVersion": 1,
+    "prApprovedByMan": true,
+    "trackers": ["github_issues"],
+    "items": [
+      {
+        "id": "child-a",
+        "parentId": null,
+        "dependsOn": [],
+        "title": "Fast child: create team-parser-postfix-e2e-20261126/child-a.txt",
+        "status": "completed",
+        "trackerRefs": [{"provider": "github_issues", "sourceId": "mariuszmarzec/test-manul-e2e#102"}]
+      },
+      {
+        "id": "child-b",
+        "parentId": null,
+        "dependsOn": [],
+        "title": "Longer child: implement team_parser_postfix_e2e_20261126/child_b.py with tests",
+        "status": "completed",
+        "trackerRefs": [{"provider": "github_issues", "sourceId": "mariuszmarzec/test-manul-e2e#103"}]
+      },
+      {
+        "id": "child-c",
+        "parentId": null,
+        "dependsOn": [],
+        "title": "Longer child: implement team_parser_postfix_e2e_20261126/child_c.py with tests",
+        "status": "completed",
+        "trackerRefs": [{"provider": "github_issues", "sourceId": "mariuszmarzec/test-manul-e2e#104"}]
+      },
+      {
+        "id": "child-d",
+        "parentId": null,
+        "dependsOn": ["child-a"],
+        "title": "Follow-up: create team-parser-postfix-e2e-20261126/a-follow-up.txt from Child A result",
+        "status": "dispatched",
+        "trackerRefs": [{"provider": "github_issues", "sourceId": "mariuszmarzec/test-manul-e2e#106"}]
+      }
+    ],
+    "decisions": [
+      "Created three independent top-level child work items A, B, C as GitHub Issues with /manul run triggers",
+      "Using GitHub Issues as tracker per repository policy",
+      "prApprovedByMan: true inherited from parent workflow",
+      "Child A completed (PR #105) - verified exact content 'child A complete\\n'",
+      "Child B completed (PR #107) - implemented postfix parser with 194 tests passing",
+      "Child C completed (PR #108) - implemented integer number theory utilities with 444 tests passing",
+      "Child D created (issue #106) dependent only on Child A, triggered via /manul run at 2026-11-26T14:36:33Z",
+      "Acknowledged Child A completion event IC_kwDOUPMlg88AAAABrNrpgg",
+      "Acknowledged Child B completion event IC_kwDOUPMlg88AAAABrN5G4g on this wakeup",
+      "Child C completion event added to pending for acknowledgment on next checkpoint"
+    ],
+    "assumptions": [
+      "Manul poller will pick up the /manul run triggers on issues #102, #103, #104, #106",
+      "Child work items will execute in isolated workspaces",
+      "Parent will be woken on child completion events"
+    ],
+    "coordinator": {
+      "pendingChildEvents": [
+        {
+          "eventId": "IC_kwDOUPMlg88AAAABrNrqgg",
+          "workItemId": "child-c",
+          "type": "completed",
+          "timestamp": "2026-11-26T14:52:14Z",
+          "data": {"prNumber": 108, "issueNumber": 104}
+        }
+      ],
+      "acknowledgedChildEventIds": [
+        "IC_kwDOUPMlg88AAAABrNrpgg",
+        "IC_kwDOUPMlg88AAAABrN5G4g"
+      ],
+      "lastDispatchedEventKey": "child-b-completed"
+    }
+  }
+}
