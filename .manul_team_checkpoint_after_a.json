@@ -1,0 +1,67 @@
+MANUL_WORKFLOW_STATE_BEGIN
+{
+  "workflowId": "team:mariuszmarzec/test-manul-e2e:7194790995",
+  "workflowType": "team",
+  "repository": "mariuszmarzec/test-manul-e2e",
+  "phase": "integration",
+  "status": "waiting_children",
+  "data": {
+    "schemaVersion": 1,
+    "prApprovedByMan": true,
+    "trackers": ["github_issues"],
+    "items": [
+      {
+        "id": "child-a",
+        "parentId": null,
+        "dependsOn": [],
+        "title": "Fast child: create team-parser-postfix-e2e-20261126/child-a.txt",
+        "status": "completed",
+        "trackerRefs": [
+          {"provider": "github_issues", "sourceId": "mariuszmarzec/test-manul-e2e#102"},
+          {"provider": "github_issues", "sourceId": "mariuszmarzec/test-manul-e2e#105"}
+        ]
+      },
+      {
+        "id": "child-b",
+        "parentId": null,
+        "dependsOn": [],
+        "title": "Longer child: implement team_parser_postfix_e2e_20261126/child_b.py with tests",
+        "status": "in_progress",
+        "trackerRefs": [{"provider": "github_issues", "sourceId": "mariuszmarzec/test-manul-e2e#103"}]
+      },
+      {
+        "id": "child-c",
+        "parentId": null,
+        "dependsOn": [],
+        "title": "Longer child: implement team_parser_postfix_e2e_20261126/child_c.py with tests",
+        "status": "created",
+        "trackerRefs": [{"provider": "github_issues", "sourceId": "mariuszmarzec/test-manul-e2e#104"}]
+      },
+      {
+        "id": "child-d",
+        "parentId": null,
+        "dependsOn": ["child-a"],
+        "title": "Follow-up child: create team-parser-postfix-e2e-20261126/a-follow-up.txt",
+        "status": "created",
+        "trackerRefs": [{"provider": "github_issues", "sourceId": "mariuszmarzec/test-manul-e2e#106"}]
+      }
+    ],
+    "decisions": [
+      "Created three independent top-level child work items A, B, C as GitHub Issues with /manul run triggers",
+      "Using GitHub Issues as tracker per repository policy",
+      "prApprovedByMan: true inherited from parent workflow",
+      "Child A completed (PR #105 opened), verified file content matches exactly 'child A complete\\n'",
+      "Child D created depending only on Child A, triggered via /manul run on issue #106",
+      "Parent re-parked while B, C, D continue"
+    ],
+    "assumptions": [
+      "Manul poller will pick up the /manul run triggers on issues #103, #104, #106",
+      "Child work items will execute in isolated workspaces",
+      "Parent will be woken on child completion events"
+    ],
+    "coordinator": {
+      "acknowledgedChildEventIds": ["task_done:source:github_issues:mariuszmarzec/test-manul-e2e#102:attempt:1"]
+    }
+  }
+}
+MANUL_WORKFLOW_STATE_END
